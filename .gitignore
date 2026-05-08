@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+*.pyc
+
+.vscode/
+.idea/
+
+build/
+dist/
+
+# Ignorer le contenu data
+data/*
+
+# Garder l'arborescence
+!data/**/
+!data/**/.gitkeep
