@@ -1,15 +1,27 @@
 import customtkinter as ctk
 import json
 import webbrowser
+import os
 
+from cryptography.fernet import Fernet
+from dotenv import load_dotenv
 from PIL import Image
 from utils.page_lang import PageLang
 from datetime import date, datetime
 from config.paths import DATA_FILE, DASHBOARD_CONFIG_FILE
+from config.paths import resource_path
 
-# -- Fichiers données & constantes --
+# -- Constantes --
+load_dotenv()
+
 MAX_JOURNEE = 454           # 7h34 en minutes
 MAX_HV_PAR_JOUR = 50        # max HV par jour
+URL_KEY = os.getenv("URL_KEY")
+
+if not URL_KEY:
+    raise ValueError("URL_KEY absente du fichier .env")
+
+FERNET = Fernet(URL_KEY.encode("utf-8"))
 
 class PageAccueil(ctk.CTkFrame):
     def __init__(self, parent, app):
@@ -129,7 +141,7 @@ class PageAccueil(ctk.CTkFrame):
         # --- Fonction pour la création d'un icone ---
         def create_icon(col, image_path, url, text):
             try:
-                img = Image.open(image_path)
+                img = Image.open(resource_path(image_path))
                 img = img.resize((50, 50))
                 icon = ctk.CTkImage(img, size=(50, 50))
             except:
@@ -140,7 +152,7 @@ class PageAccueil(ctk.CTkFrame):
                 image=icon,
                 text=text,
                 compound="top",
-                command=lambda: self.open_link(url),
+                command=lambda u=url: self.open_link(self.decrypt_url(u)),
                 width=100,
                 height=80,
                 fg_color="black"
@@ -150,12 +162,12 @@ class PageAccueil(ctk.CTkFrame):
 
         # --- Tableau d'icones à créer dans le conteneur ---
         icons = [
-            (0, "ui/assets/icons/selftime.jpg", "https://selftime.ratp.net/", "Selftime"),
-            (1, "ui/assets/icons/magellan.png", "https://outils-ame.info.ratp/entete_portail/frameset.php?appli=magellanMobile", "Magellan Mobile"),
-            (2, "ui/assets/icons/magellan.png", "https://outils-ame.info.ratp/entete_portail/frameset.php?appli=magellan", "Magellan Fixe"),
-            (3, "ui/assets/icons/ihm.png", "https://outils-ame.info.ratp/index.php?appli=IHM", "IHM"),
-            (4, "ui/assets/icons/mpd.png", "https://outils-ame.info.ratp/index.php?appli=MPD", "MPD"),
-            (5, "ui/assets/icons/urban.png", "https://outils-ame.info.ratp/index.php", "Urban AME")
+            (0, "ui/assets/icons/selftime.jpg", "gAAAAABqTJ7ts4lj09jPUHVuJKNhQTtRLQFwb-W6qKFRhiaDE7OHwAXwPsbyfLQd7ZQy-9_zYMGZFtHoOUqEUC_8_Wmn-tiTcR7syjs2PqbDmYMhkUmz69g=", "Selftime"),
+            (1, "ui/assets/icons/magellan.png", "gAAAAABqTJ7tdtOI2MBSYSIWHzQp9A3ziA8fgzs1P1M0SXkCNjbUyJad7cEleJPiVAluwLhkk0jzX8RylO5ddj3jZL3VHJUHer0T8RnziDdMRMBNNQmn9WllNcimAU7beccZtwGDMI9Q-Br79iBh4rGH1YxykWjqwvFYAkQassoOWsEHV93X8JE=", "Magellan Mobile"),
+            (2, "ui/assets/icons/magellan.png", "gAAAAABqTJ7tJu9H69MJlF_-7r6Lf4A4M99lKHSMKPubWM46qPK-lK2Y_RFALGri3FBPdukINQIJ_9Rtvx7-_qdmGk0VKA9bGlvrfHhVZhFl0s_CtFbyUI401g650rYWlIdf7drR7hUHEoIxa8c91Nju88VfrSSDlidChYfE3nf3VJ_9ByLiPPU=", "Magellan Fixe"),
+            (3, "ui/assets/icons/ihm.png", "gAAAAABqTJ7tkpAmamnbwiOFlkcnwUoTvgUp_OHFuQYbM6X-6PLahMBQ2FvPFL94QpJS2t1icp5UCdYfVkrGf6Y1B771VAh7LRZscNaufnqoqw2tQZ_oG2U-htyzaDHfwnrHnahd0DTY-Zw2oL3hgRFwpSQNxLK1vw==", "IHM"),
+            (4, "ui/assets/icons/mpd.png", "gAAAAABqTJ7tKyppaGOhaVaMuBJV7N2jOYpwEtSjfaShS8u--e4cxww-pHDUVu-rEn31aJxx7W4h8Qp11-LHYu1VnnHiyk4UBBDK0zVgc_n3yasqujaCJC_gqzGvPps_t0-LUbVBERRI5HuGnEGHG0XAkjuImGBphg==", "MPD"),
+            (5, "ui/assets/icons/urban.png", "gAAAAABqTJ7tUzdFxMkoXE9FvUM_jTDLMpsKr0DFZI76nanAOwf1yBfM76toQoEf4MLwWLFqVkxiZhlVIzzLboneFoBkcJJAAM0hXO5XmKD96CQOzMcLcui7ALg_m7IG67dTgO_JSXNF", "Urban AME")
         ]
 
         for col, img, url, text in icons:
@@ -284,8 +296,10 @@ class PageAccueil(ctk.CTkFrame):
             e.get("saisie_magellan") == False
         )
 
-        th_saisir = a_saisir // 60
-        tm_saisir = a_saisir % 60
+        total_saisie = int(a_saisir * 0.87)
+
+        th_saisir = total_saisie // 60
+        tm_saisir = total_saisie % 60 
 
         self.label_saisie.configure(
             text=f"{self.lang_util.t("temps_restant_saisie")} {th_saisir}h{tm_saisir:02d}",
@@ -317,7 +331,6 @@ class PageAccueil(ctk.CTkFrame):
         hv_max_total = 454 if role == "Technicien" else 908  # 7h34 ou 15h08
 
         for jour_str, total_jour in sorted(jours.items()):
-
             if total_jour > MAX_JOURNEE:
                 hv_jour = min(total_jour - MAX_JOURNEE, MAX_HV_PAR_JOUR)
                 cumul_hv += hv_jour
@@ -356,4 +369,8 @@ class PageAccueil(ctk.CTkFrame):
             )
 
         self.refresh()
+
+    # Decrypter liens internets
+    def decrypt_url(self, encrypted_url):
+        return FERNET.decrypt(encrypted_url.encode()).decode("utf-8")
 

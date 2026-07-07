@@ -2,8 +2,9 @@ import customtkinter as ctk
 
 from pathlib import Path
 from utils.page_lang import PageLang
+from config.paths import resource_path
 
-CHANGELOG_FILE = Path("CHANGELOG.md")
+CHANGELOG_FILE = Path(resource_path("CHANGELOG.md"))
 
 class PageApropos(ctk.CTkFrame):
     def __init__(self, parent, app):
@@ -55,7 +56,7 @@ class PageApropos(ctk.CTkFrame):
 
         # ================= 1 Nom + version =================
         self._section_title(container, "Journées de travail RATP - Application agent")
-        self._section_text(container, "Version 1.27.23")
+        self._section_text(container, "Version 1.27.24")
 
         # ================= 2 Description =================
         self._section_title(container, "Description")

@@ -4,7 +4,6 @@ import tkinter as tk
 import tkinter.messagebox as msg
 import json
 
-from pathlib import Path
 from utils.page_lang import PageLang
 from config.paths import CONSOMMABLES_FILE
 

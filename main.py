@@ -15,12 +15,13 @@ from ui.page_profil import PageProfil
 from utils.settings import load_settings, apply_theme
 from utils.page_lang import PageLang
 from config.paths import DATA_FILE, USER_FILE
+from config.paths import resource_path
 
 
 # ----------------- Fonctions utilitaires -----------------
 # Chargement / creation des données Organes
 def load_data():
-    if os.path.exists(DATA_FILE):
+    if DATA_FILE.exists():
         try:
             with open(DATA_FILE, "r") as f:
                 content = f.read().strip()
@@ -31,13 +32,15 @@ def load_data():
             return {}
     return {}
 
+# Sauvegarde des données
 def save_data(entry):
     with open(DATA_FILE, "a", encoding="utf-8") as f:  
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
+# Charger toutes les entrée existantes
 def load_all_entries():
     entries = []
-    if os.path.exists(DATA_FILE):
+    if DATA_FILE.exists():
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             for line in f:
                 try:
@@ -48,24 +51,28 @@ def load_all_entries():
 
 # Suppression des données
 def delete_all_entries():
-    if os.path.exists(DATA_FILE):
-        os.remove(DATA_FILE)
+    try:
+        if DATA_FILE.exists():
+            DATA_FILE.unlink()
+    except Exception as e:
+        print(f"Erreur suppression : {e}")
 
 # ----------------- Classe Dashboard -----------------
 class Dashboard(ctk.CTk):
     def __init__(self):
         super().__init__()
 
+        # Variables
         settings = load_settings()
         self.lang = settings.get("lang", "francais")
         self.lang_util = PageLang(self)
         apply_theme(settings.get("theme", "Dark"))
 
-        self.title("Journées de travail RATP - Application Agent v1.27.23")
+        # Configuration de la fenêtre
+        self.title("Journées de travail RATP - Application Agent v1.27.24")
         self.geometry("1180x850")
-
         icon_path = os.path.join("ui", "assets", "train.ico")
-        self.iconbitmap(icon_path)
+        self.iconbitmap(resource_path(icon_path))
 
         # --- Initialisation des infos utilisateur ---
         self.user_name = None
@@ -83,9 +90,11 @@ class Dashboard(ctk.CTk):
         
         # ---- Logo dans la sidebar ----
         try:
+            logo = resource_path("ui/assets/logo_ratp.png")
+
             logo_image = ctk.CTkImage(
-                light_image=Image.open("ui/assets/logo_ratp.png"),
-                dark_image=Image.open("ui/assets/logo_ratp.png"),
+                light_image=Image.open(logo),
+                dark_image=Image.open(logo),
                 size=(150, 105)
             )
             ctk.CTkLabel(self.sidebar, image=logo_image, text="").pack(pady=40)
@@ -128,7 +137,6 @@ class Dashboard(ctk.CTk):
             "paramètres" : PageParams(self.main_frame, self),
             "apropos" : PageApropos(self.main_frame, self)
         }
-
         self.refresh_language()
 
         # Page par défaut
@@ -224,23 +232,20 @@ class Dashboard(ctk.CTk):
     def ask_user_name(self):
         popup = ctk.CTkToplevel(self)
         popup.title("Bienvenue !")
-        popup.iconbitmap("ui/assets/train.ico")
+        popup.iconbitmap(resource_path("ui/assets/train.ico"))
         popup.geometry("400x300")
         popup.grab_set()
         popup.resizable(False, False)
-
         popup.update_idletasks()
         self.center_popup(popup)
 
         header = ctk.CTkFrame(popup, fg_color="#1E5CC4", height=60)
         header.pack(fill="x")
         ctk.CTkLabel(header, text="Bienvenue Agent", font=("Roboto", 18), text_color="white").place(relx=0.5, rely=0.5, anchor="center")
-
         ctk.CTkLabel(popup, text="Veuillez entrer votre prénom :", font=("Roboto", 14)).pack(pady=(20,5))
         entry = ctk.CTkEntry(popup, width=200, font=("Roboto", 14))
         entry.pack(pady=5)
         entry.focus()
-
         ctk.CTkLabel(popup, text="Sélectionnez votre rôle :", font=("Roboto", 14)).pack(pady=(10,5))
 
         # Variable rôle
@@ -251,9 +256,9 @@ class Dashboard(ctk.CTk):
         ctk.CTkRadioButton(popup, text="Technicien", variable=role_var, value="Technicien").pack(pady=2)
         ctk.CTkRadioButton(popup, text="Technicien supérieur", variable=role_var, value="Technicien Superieur").pack(pady=2)
 
+        # Valider les données
         def valider():
             USER_FILE.parent.mkdir(parents=True, exist_ok=True)
-
             name = entry.get().strip()
             self.user_name = name if name else "Utilisateur"
             self.user_role = role_var.get()  # <- ici on récupère le rôle sélectionné
@@ -276,9 +281,9 @@ class Dashboard(ctk.CTk):
         btn.pack(pady=15)
         popup.bind("<Return>", lambda e: valider())
 
+    # Rafraichissement de la langue
     def refresh_language(self):
         self.lang_util = PageLang(self)
-
         self.btn_accueil.configure(text=self.lang_util.t("accueil"))
         self.btn_saisie.configure(text=self.lang_util.t("saisie"))
         self.btn_historique.configure(text=self.lang_util.t("historique"))

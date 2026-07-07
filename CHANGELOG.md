@@ -2,7 +2,7 @@
 
 Toutes les modifications notables de cette application sont documentées ici.
 
-## [1.27.23] – 08-05-2026
+## [1.27.23] – 07-07-2026
 ### Ajout de fonctionnalités
 - Blocage de la saisie les week-ends avec message d’avertissement.
 - Gestion et affichage du temps travaillé quotidien et cumul HV.
@@ -61,11 +61,12 @@ Toutes les modifications notables de cette application sont documentées ici.
 - Correction des HV qui restaient à 0h00 dans l'export Excel et PDF.
 - Correction d'un bug qui mettait un message d'erreur lors de la modification d'un depannage si une photo etait deja presente.
 - Deplacement des fichiers JSON dans un repertoire dedié avec correction des chemins dans le code.
+- Encryption des liens internet dans le code de la page accueil.
 
 ### Remarques
 - Version stable pour usage quotidien.
 - La numérotation suit le schéma **MAJOR.MINOR.PATCH** :
   - MAJOR = 1 : première version stable
   - MINOR = 27 : nouvelles fonctionnalités majeures ajoutées
-  - PATCH = 23 : corrections mineures récentes
+  - PATCH = 24 : corrections mineures récentes
 
