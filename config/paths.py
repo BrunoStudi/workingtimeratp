@@ -25,9 +25,15 @@ CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 DEPANNAGE_FILE = DATA_DIR / "depannage.json"
 MATERIELS_FILE = DATA_DIR / "materiels.json"
 CONSOMMABLES_FILE = DATA_DIR / "consommables.jsonl"
+EXCEL_RESEAU = r"S:\EK1\03-PARTAGE\AME\articles-ref.xlsx"
 DATA_FILE = DATA_DIR / "data.jsonl"
 DATA_IA = DATA_DIR / "data_ia.csv"
 USER_FILE = DATA_DIR / "user.json"
 
 SETTINGS_FILE = CONFIG_DIR / "settings.json"
 DASHBOARD_CONFIG_FILE = CONFIG_DIR / "dashboard_config.json"
+
+# ================= RACCOURCIS PERSONNALISÉS =================
+SHORTCUTS_FILE = CONFIG_DIR / "shortcuts.json"
+SHORTCUTS_ICONS_DIR = APP_DATA_DIR / "shortcuts_icons"
+SHORTCUTS_ICONS_DIR.mkdir(parents=True, exist_ok=True)

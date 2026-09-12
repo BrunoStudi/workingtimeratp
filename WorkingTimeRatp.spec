@@ -1,13 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_data_files
-
 block_cipher = None
 
 datas = [
-    ("ui", "ui"),
-    ("utils", "utils"),
-    ("config", "config"),
+    ("ui/assets", "ui/assets"),
     ("CHANGELOG.md", "."),
 ]
 
@@ -31,7 +27,11 @@ a = Analysis(
     noarchive=False,
 )
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(
+    a.pure,
+    a.zipped_data,
+    cipher=block_cipher
+)
 
 exe = EXE(
     pyz,

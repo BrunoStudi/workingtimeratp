@@ -1,0 +1,17 @@
+WorkingTimeRatp
+Application agent
+
+WorkingTimeRatp centralise plusieurs outils utiles aux activités quotidiennes :
+
+• Suivi du temps de travail
+• Calcul et suivi des heures variables (HV)
+• Saisie et historique des interventions
+• Recherche et suivi des consommables STOE / VG
+• Procédures de dépannage
+• Accès rapide aux outils métier
+
+Les données utilisateur sont conservées localement sur le poste de travail.
+
+Développé par Bruno Carrière
+Équipe EK1 • AME
+Version 1.41.43

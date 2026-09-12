@@ -4,8 +4,10 @@ import tkinter as tk
 import tkinter.messagebox as msg
 import json
 
+from openpyxl import load_workbook
+from tkinter import messagebox
 from utils.page_lang import PageLang
-from config.paths import CONSOMMABLES_FILE
+from config.paths import CONSOMMABLES_FILE, EXCEL_RESEAU
 
 # ================= JSONL STORE =================
 CONSOMMABLES_FILE.parent.mkdir(parents=True, exist_ok=True)  # assure que le dossier existe
@@ -81,6 +83,14 @@ class PageConsommables(ctk.CTkFrame):
         self.btn_add = ctk.CTkButton(form_frame, text=self.lang_util.t("ajouter"), command=self.add_consommable)
         self.btn_add.pack(side="left", padx=5)
 
+        self.btn_refresh_network = ctk.CTkButton(
+            form_frame,
+            text="Rafraîchir depuis le réseau",
+            command=self.refresh_from_network
+        )
+
+        self.btn_refresh_network.pack(pady=10)
+
         # Reinitialiser la liste lorsque le champs est vide
         self.search_entry.bind(
             "<KeyRelease>",
@@ -91,21 +101,79 @@ class PageConsommables(ctk.CTkFrame):
         table_frame = ctk.CTkFrame(self)
         table_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
-        columns = ("id", "nom")
+        columns = (
+            "id",
+            "nom",
+            "quantite_stoe",
+            "quantite_vg"
+        )
         style = ttk.Style()
         style.theme_use("default")
 
         # style isolé pour ce treeview
-        style.configure("Consommables.Treeview.Heading", background="#DADADA", foreground="#000000", font=("Roboto", 10))
-        style.map("Consommables.Treeview.Heading", background=[("active", "#C8C8C8")])
+        style.configure(
+            "Consommables.Treeview.Heading",
+            background="#DADADA",
+            foreground="#000000",
+            font=("Roboto", 10)
+        )
+        style.map(
+            "Consommables.Treeview.Heading",
+            background=[("active", "#C8C8C8")]
+        )
 
-        # Entête
-        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", style="Consommables.Treeview", height=20)
+        # Scrollbar verticale
+        scrollbar_y = ttk.Scrollbar(
+            table_frame,
+            orient="vertical"
+        )
+        scrollbar_y.pack(
+            side="right",
+            fill="y"
+        )
+
+        # Treeview
+        self.tree = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            style="Consommables.Treeview",
+            height=20,
+            yscrollcommand=scrollbar_y.set
+        )
+        
+        self.tree.tag_configure(
+            "rupture",
+            background="#FF3030",
+            foreground="black"
+        )
+
+        self.tree.tag_configure(
+            "stoe_vide",
+            background="#FFA500",
+            foreground="black"
+        )
+
         self.tree.heading("id", text=self.lang_util.t("consommable_id"))
         self.tree.heading("nom", text=self.lang_util.t("consommable_nom"))
-        self.tree.column("id", width=25, anchor="center")
-        self.tree.column("nom", width=650, anchor="center")
-        self.tree.pack(fill="both", expand=True)
+        self.tree.heading("quantite_stoe", text="Quantité STOE")
+        self.tree.heading("quantite_vg", text="Quantité VG")
+
+        self.tree.column("id", width=20, anchor="center")
+        self.tree.column("nom", width=500, anchor="w")
+        self.tree.column("quantite_stoe", width=20, anchor="center")
+        self.tree.column("quantite_vg", width=20, anchor="center")
+
+        self.tree.pack(
+            side="left",
+            fill="both",
+            expand=True
+        )
+
+        # Liaison scrollbar -> Treeview
+        scrollbar_y.configure(
+            command=self.tree.yview
+        )
 
         # ================= CONTEXT MENU =================
         self.menu = tk.Menu(self, tearoff=0)
@@ -144,15 +212,33 @@ class PageConsommables(ctk.CTkFrame):
             cid = str(item["id"])
             nom = str(item["nom"])
 
+            quantite_stoe = item.get("quantite_stoe", 0)
+            quantite_vg = item.get("quantite_vg", 0)
+
             if search_text:
                 if search_text not in cid.lower() and search_text not in nom.lower():
                     continue
 
+            # Déterminer la couleur de la ligne
+            if quantite_stoe == 0 and quantite_vg == 0:
+                tags = ("id_bold", "rupture")
+
+            elif quantite_stoe == 0 and quantite_vg >= 1:
+                tags = ("id_bold", "stoe_vide")
+
+            else:
+                tags = ("id_bold",)
+
             self.tree.insert(
                 "",
                 "end",
-                values=(cid, nom.upper()),
-                tags=("id_bold",)
+                values=(
+                    cid,
+                    nom.upper(),
+                    quantite_stoe,
+                    quantite_vg
+                ),
+                tags=tags
             )
 
     def consommable_exists(self, cid):
@@ -178,6 +264,187 @@ class PageConsommables(ctk.CTkFrame):
     def search_consommables(self):
         search_text = self.search_entry.get()
         self.load_data(search_text)
+
+    def refresh_from_network(self):
+        try:
+            workbook = load_workbook(
+                EXCEL_RESEAU,
+                read_only=True,
+                data_only=True
+            )
+
+            sheet = workbook["referentiel-articles"]
+
+            # ================= RÉCUPÉRATION EXCEL =================
+            articles_reseau = []
+
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+
+                code_article = row[0]
+                description = row[2]
+
+                # Code article obligatoire
+                if code_article is None:
+                    continue
+
+                # Description obligatoire
+                if description is None:
+                    continue
+
+                description = str(description).strip()
+
+                # Ignorer les descriptions vides / null
+                if not description:
+                    continue
+
+                if description.lower() in ("~~null~~", "~null~", "null", "none"):
+                    continue
+
+                # Uniformiser le code article
+                code_article = str(code_article).strip()
+
+                quantite_stoe = row[6]
+                quantite_vg = row[7]
+
+                # Si la cellule Excel est vide
+                if quantite_stoe is None:
+                    quantite_stoe = 0
+
+                if quantite_vg is None:
+                    quantite_vg = 0
+
+                articles_reseau.append({
+                    "id": str(code_article).strip(),
+                    "nom": description,
+                    "quantite_stoe": quantite_stoe,
+                    "quantite_vg": quantite_vg
+                })
+
+            workbook.close()
+
+            # ================= LECTURE JSON LOCAL =================
+            consommables_locaux = {}
+
+            if CONSOMMABLES_FILE.exists():
+                with open(CONSOMMABLES_FILE, "r", encoding="utf-8") as f:
+                    for ligne in f:
+
+                        ligne = ligne.strip()
+
+                        if not ligne:
+                            continue
+
+                        try:
+                            consommable = json.loads(ligne)
+
+                            code = str(consommable["id"]).strip()
+
+                            consommables_locaux[code] = consommable
+
+                        except (json.JSONDecodeError, KeyError):
+                            continue
+
+            # ================= SYNCHRONISATION =================
+            nouveaux = 0
+            modifies = 0
+
+            for article in articles_reseau:
+
+                code = article["id"]
+
+                if code not in consommables_locaux:
+
+                    consommables_locaux[code] = article
+                    nouveaux += 1
+
+                else:
+                    # Vérifier si le nom a changé
+                    ancien = consommables_locaux[code]
+
+                    modification = False
+
+                    if ancien.get("nom", "") != article["nom"]:
+                        ancien["nom"] = article["nom"]
+                        modification = True
+
+                    if ancien.get("quantite_stoe", 0) != article["quantite_stoe"]:
+                        ancien["quantite_stoe"] = article["quantite_stoe"]
+                        modification = True
+
+                    if ancien.get("quantite_vg", 0) != article["quantite_vg"]:
+                        ancien["quantite_vg"] = article["quantite_vg"]
+                        modification = True
+
+                    if modification:
+                        modifies += 1
+
+            # ================= SAUVEGARDE JSONL =================
+            with open(CONSOMMABLES_FILE, "w", encoding="utf-8") as f:
+
+                for consommable in consommables_locaux.values():
+
+                    f.write(
+                        json.dumps(
+                            consommable,
+                            ensure_ascii=False
+                        ) + "\n"
+                    )
+
+            # ================= RAFRAÎCHIR TREEVIEW =================
+
+            for item in self.tree.get_children():
+                self.tree.delete(item)
+
+            for consommable in consommables_locaux.values():
+
+                quantite_stoe = consommable.get("quantite_stoe", 0)
+                quantite_vg = consommable.get("quantite_vg", 0)
+
+                tag = ""
+
+                if quantite_stoe == 0 and quantite_vg == 0:
+                    tag = "rupture"
+
+                elif quantite_stoe == 0 and quantite_vg >= 1:
+                    tag = "stoe_vide"
+                
+                self.tree.insert(
+                    "",
+                    "end",
+                    values=(
+                        consommable.get("id", ""),
+                        consommable.get("nom", ""),
+                        quantite_stoe,
+                        quantite_vg
+                    ),
+                    tags=(tag,)
+                )
+
+            messagebox.showinfo(
+                "Rafraîchissement terminé",
+                f"{len(articles_reseau)} articles trouvés dans le référentiel.\n\n"
+                f"{nouveaux} nouveaux articles ajoutés.\n"
+                f"{modifies} articles mis à jour.\n\n"
+                f"{len(consommables_locaux)} consommables enregistrés localement."
+            )
+
+        except FileNotFoundError:
+            messagebox.showerror(
+                "Erreur",
+                "Le fichier eBOARD_AIC EK1.xlsx est introuvable."
+            )
+
+        except KeyError:
+            messagebox.showerror(
+                "Erreur",
+                "L'onglet 'referentiel-articles' est introuvable."
+            )
+
+        except Exception as e:
+            messagebox.showerror(
+                "Erreur",
+                f"Impossible de rafraîchir le référentiel :\n\n{e}"
+            )
 
     # Traduction du language
     def refresh_language(self):

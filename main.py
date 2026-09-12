@@ -14,8 +14,7 @@ from ui.page_consommables import PageConsommables
 from ui.page_profil import PageProfil
 from utils.settings import load_settings, apply_theme
 from utils.page_lang import PageLang
-from config.paths import DATA_FILE, USER_FILE
-from config.paths import resource_path
+from config.paths import DATA_FILE, USER_FILE, resource_path
 
 
 # ----------------- Fonctions utilitaires -----------------
@@ -69,7 +68,7 @@ class Dashboard(ctk.CTk):
         apply_theme(settings.get("theme", "Dark"))
 
         # Configuration de la fenêtre
-        self.title("Journées de travail RATP - Application Agent v1.27.24")
+        self.title("Journées de travail RATP - Application Agent v1.41.43")
         self.geometry("1180x850")
         icon_path = os.path.join("ui", "assets", "train.ico")
         self.iconbitmap(resource_path(icon_path))

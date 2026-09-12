@@ -173,7 +173,7 @@ class PageOrganes(ctk.CTkFrame):
         sous = self.entry_sous.get().strip()
         no_sub = self.no_sub_var.get()
 
-        pattern_mat = r"^(?:[A-Z]{3}[0-9]{1}\.[A-Z]{2}|[A-Z]{5,7}\.[A-Z]{2})$"
+        pattern_mat = r"^(?:[A-Z]{3}[0-9]{1}\.[A-Z]{2}|[A-Z]{5,7}\.[A-Z]{2}[1]{1})$"
         pattern_sous = r"[A-Z]{3,7}[0-9]{0,2}\.[A-Z]{2}"
 
         if not mat or not re.match(pattern_mat, mat):

@@ -1,4 +1,6 @@
+.venv/
 venv/
+
 __pycache__/
 *.pyc
 
@@ -10,6 +12,7 @@ dist/
 installer/
 
 .env
+workingtime.dat
 
 # Ignorer le contenu data
 data/*
@@ -17,3 +20,11 @@ data/*
 # Garder l'arborescence
 !data/**/
 !data/**/.gitkeep
+
+# Données locales de l'application
+consommables.jsonl
+data.jsonl
+depannage.json
+materiels.json
+settings.json
+user.json
