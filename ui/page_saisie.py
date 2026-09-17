@@ -5,7 +5,7 @@ import re
 from datetime import date, datetime
 from utils.page_lang import PageLang
 from tkinter import messagebox
-from config.paths import MATERIELS_FILE, DATA_FILE
+from config.paths import MATERIELS_FILE, DATA_FILE, resource_path
 
 class PageSaisie(ctk.CTkFrame):
     def __init__(self, parent, app):
@@ -571,7 +571,10 @@ class PageSaisie(ctk.CTkFrame):
         popup = ctk.CTkToplevel(self)
         self.popup_hour = popup
         popup.title(self.lang_util.t("choisir_heure"))
-        popup.iconbitmap("ui/assets/train.ico")
+        try:
+            popup.iconbitmap(resource_path("ui/assets/train.ico"))
+        except Exception:
+            pass
         popup.geometry("280x300")
         popup.grab_set()
 
@@ -619,7 +622,10 @@ class PageSaisie(ctk.CTkFrame):
         popup = ctk.CTkToplevel(self)
         self.popup_minute = popup
         popup.title(self.lang_util.t("choisir_minutes"))
-        popup.iconbitmap("ui/assets/train.ico")
+        try:
+            popup.iconbitmap(resource_path("ui/assets/train.ico"))
+        except Exception:
+            pass
         popup.geometry("350x430")
         popup.grab_set()
 

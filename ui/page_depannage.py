@@ -2,13 +2,13 @@ import customtkinter as ctk
 import tkinter.messagebox as msg
 import shutil
 import json
+import uuid
 
 from PIL import Image
 from pathlib import Path
 from tkinter import filedialog
-from pathlib import Path
 from utils.page_lang import PageLang
-from config.paths import DEPANNAGE_FILE, MATERIELS_FILE
+from config.paths import DEPANNAGE_FILE, DEPANNAGE_NETWORK_FILE, DEPANNAGE_NETWORK_IMAGES_DIR, MATERIELS_FILE
 
 
 # Enregistrement des images depannage dans pictures dossier utilisateur
@@ -32,6 +32,45 @@ def load_depannages():
     except json.JSONDecodeError:
         return []
 
+def load_depannage_file(path):
+    """Charge un fichier de dépannage et retourne sa liste."""
+    try:
+        if not path.exists() or path.stat().st_size == 0:
+            return []
+
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        return data.get("depannages", [])
+
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def save_depannage_file(path, depannages):
+    """Sauvegarde une liste de dépannages dans un fichier JSON."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(
+            {"depannages": depannages},
+            f,
+            ensure_ascii=False,
+            indent=4
+        )
+
+
+def depannage_key(depannage):
+    """
+    Identifiant logique d'une procédure.
+    """
+    return (
+        depannage.get("organe"),
+        depannage.get("sous_organe"),
+        depannage.get("scenario"),
+        depannage.get("etape"),
+    )
+
 # Vérifie si un dépannage est present
 def depannage_exists(organe, sous_organe):
     return any(
@@ -52,6 +91,21 @@ class PageDepannage(ctk.CTkFrame):
         header.pack_propagate(False)
         self.header_label = ctk.CTkLabel(header, text=self.lang_util.t("depannage_titre"), font=("Roboto", 24), text_color="white")
         self.header_label.pack(expand=True)
+
+        # ================= STATUT SYNCHRONISATION =================
+        self.sync_status_badge = ctk.CTkLabel(
+            self,
+            text="",
+            font=("Roboto", 12, "bold"),
+            text_color="white",
+            corner_radius=12,
+            height=28,
+            padx=14
+        )
+        self.sync_status_badge.pack(pady=(3, 5))
+
+        self.update_network_status()
+        self.after(500,lambda: self.sync_depannage_database(show_popup=True))
 
         # ================= FORM DROPDOWNS =================
         form_frame = ctk.CTkFrame(self, border_width=1)
@@ -92,12 +146,295 @@ class PageDepannage(ctk.CTkFrame):
         self.organe_menu.configure(values=list(self.materiels_data.keys()))
 
     # ================= MÉTHODES =================
+    def network_depannage_available(self):
+        """
+        Vérifie si la base de dépannage partagée EK1
+        est actuellement accessible.
+        """
+        try:
+            return DEPANNAGE_NETWORK_FILE.parent.exists()
+        except OSError:
+            return False
+        
     def load_materiels(self):
         if not MATERIELS_FILE.exists():
             return {}
         with open(MATERIELS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data.get("materiels", {})
+
+    def update_network_status(self):
+        if self.network_depannage_available():
+            self.sync_status_badge.configure(
+                text="● Base dépannage EK1 accessible",
+                fg_color="#2E8B57"
+            )
+        else:
+            self.sync_status_badge.configure(
+                text="● Réseau EK1 indisponible — utilisation de la base locale",
+                fg_color="#D97706"
+            )
+
+    def check_initial_network_database(self):
+        """
+        Vérifie si une base de dépannage existe sur le partage EK1.
+
+        Si le réseau est accessible mais qu'aucune base partagée
+        n'existe encore, propose de publier la base locale.
+        """
+
+        # Réseau indisponible : on reste simplement en local
+        if not self.network_depannage_available():
+            return
+
+        # Une base réseau existe déjà
+        if DEPANNAGE_NETWORK_FILE.exists():
+            return
+
+        # Pas de base locale à publier
+        if not DEPANNAGE_FILE.exists() or DEPANNAGE_FILE.stat().st_size == 0:
+            return
+
+        reponse = msg.askyesno(
+            "Initialisation de la base partagée",
+            "Aucune base de dépannage partagée n'a été trouvée sur le réseau EK1.\n\n"
+            "Une base locale est disponible sur ce poste.\n\n"
+            "Voulez-vous publier cette base sur le partage EK1 ?"
+        )
+
+        if not reponse:
+            return
+
+        self.publish_local_database()
+
+    def publish_local_database(self):
+        """
+        Publie la base de dépannage locale sur le partage EK1.
+        """
+
+        try:
+            # Vérification supplémentaire pour éviter
+            # d'écraser un fichier apparu entre-temps
+            if DEPANNAGE_NETWORK_FILE.exists():
+                msg.showwarning(
+                    "Publication annulée",
+                    "Une base de dépannage vient d'apparaître sur le réseau EK1.\n\n"
+                    "Aucun fichier n'a été écrasé."
+                )
+                return
+
+            # Création du dossier si nécessaire
+            DEPANNAGE_NETWORK_FILE.parent.mkdir(
+                parents=True,
+                exist_ok=True
+            )
+
+            # Copie de la base locale
+            shutil.copy2(
+                DEPANNAGE_FILE,
+                DEPANNAGE_NETWORK_FILE
+            )
+
+            # Mise à jour du badge
+            self.update_network_status()
+
+            msg.showinfo(
+                "Base partagée créée",
+                "La base locale de dépannage a été publiée avec succès "
+                "sur le réseau EK1.\n\n"
+                "Elle peut maintenant servir de base commune aux collaborateurs."
+            )
+
+        except PermissionError:
+            msg.showerror(
+                "Accès refusé",
+                "WorkingTimeRatp n'a pas l'autorisation d'écrire "
+                "dans le dossier partagé EK1."
+            )
+
+        except OSError as e:
+            msg.showerror(
+                "Erreur réseau",
+                "Impossible de publier la base de dépannage sur le réseau EK1.\n\n"
+                f"Détail : {e}"
+            )
+
+    def sync_depannage_database(self, show_popup=True):
+        """
+        Synchronise automatiquement la base locale et la base réseau.
+
+        - Les procédures présentes uniquement en local sont ajoutées au réseau.
+        - Les procédures présentes uniquement sur le réseau sont ajoutées en local.
+        - Aucune procédure existante n'est supprimée.
+        """
+
+        if not self.network_depannage_available():
+            self.update_network_status()
+            return
+
+        # Première utilisation : pas encore de fichier partagé
+        if not DEPANNAGE_NETWORK_FILE.exists():
+            self.check_initial_network_database()
+            return
+
+        try:
+            local_depannages = load_depannage_file(DEPANNAGE_FILE)
+            network_depannages = load_depannage_file(DEPANNAGE_NETWORK_FILE)
+
+            local_dict = {
+                depannage_key(d): d
+                for d in local_depannages
+            }
+
+            network_dict = {
+                depannage_key(d): d
+                for d in network_depannages
+            }
+
+            local_updated = False
+            network_updated = False
+
+            # ==================================================
+            # RÉSEAU -> LOCAL
+            # ==================================================
+            for key, network_item in network_dict.items():
+
+                # Cette procédure n'existe pas encore localement
+                if key not in local_dict:
+                    local_dict[key] = network_item
+                    local_updated = True
+
+                # Même procédure mais contenu différent :
+                # le réseau actualise la copie locale
+                elif local_dict[key] != network_item:
+                    local_dict[key] = network_item
+                    local_updated = True
+
+            # ==================================================
+            # LOCAL -> RÉSEAU
+            # ==================================================
+            for key, local_item in local_dict.items():
+
+                # Cette procédure n'existe pas encore sur le réseau
+                if key not in network_dict:
+                    network_dict[key] = local_item
+                    network_updated = True
+
+            # Sauvegarde locale uniquement si nécessaire
+            if local_updated:
+                save_depannage_file(
+                    DEPANNAGE_FILE,
+                    list(local_dict.values())
+                )
+
+            # Sauvegarde réseau uniquement si nécessaire
+            if network_updated:
+                save_depannage_file(
+                    DEPANNAGE_NETWORK_FILE,
+                    list(network_dict.values())
+                )
+
+            photos_updated = self.sync_depannage_photos()
+            self.update_network_status()
+
+            # Popup seulement si le poste a récupéré
+            # quelque chose provenant du réseau
+            if (local_updated or photos_updated) and show_popup:
+                msg.showinfo(
+                    "Base dépannage mise à jour",
+                    "De nouvelles données de dépannage ont été détectées "
+                    "sur le réseau EK1.\n\n"
+                    "La base locale et les photos ont été mises à jour automatiquement."
+                )
+
+        except PermissionError:
+            self.update_network_status()
+
+            msg.showerror(
+                "Accès refusé",
+                "WorkingTimeRatp ne peut pas accéder en écriture "
+                "à la base de dépannage partagée EK1."
+            )
+
+        except OSError as e:
+            self.update_network_status()
+
+            msg.showerror(
+                "Erreur réseau",
+                "La synchronisation de la base de dépannage a échoué.\n\n"
+                f"Détail : {e}"
+            )
+
+    def sync_depannage_photos(self):
+        """
+        Synchronise les photos de dépannage entre le poste local
+        et le dossier partagé EK1.
+
+        - Une photo locale absente du réseau est envoyée.
+        - Une photo réseau absente localement est téléchargée.
+        - Une photo existante des deux côtés n'est pas recopiée.
+        """
+
+        if not self.network_depannage_available():
+            return False
+
+        try:
+            # Création du dossier réseau s'il n'existe pas encore
+            DEPANNAGE_NETWORK_IMAGES_DIR.mkdir(
+                parents=True,
+                exist_ok=True
+            )
+
+            IMAGES_DIR.mkdir(
+                parents=True,
+                exist_ok=True
+            )
+
+            photos_updated = False
+
+            # ==========================================
+            # LOCAL -> RÉSEAU
+            # ==========================================
+            for local_photo in IMAGES_DIR.iterdir():
+
+                if not local_photo.is_file():
+                    continue
+
+                network_photo = (
+                    DEPANNAGE_NETWORK_IMAGES_DIR /
+                    local_photo.name
+                )
+
+                # On envoie uniquement les fichiers absents
+                if not network_photo.exists():
+                    shutil.copy2(
+                        local_photo,
+                        network_photo
+                    )
+
+            # ==========================================
+            # RÉSEAU -> LOCAL
+            # ==========================================
+            for network_photo in DEPANNAGE_NETWORK_IMAGES_DIR.iterdir():
+
+                if not network_photo.is_file():
+                    continue
+
+                local_photo = IMAGES_DIR / network_photo.name
+
+                # On récupère uniquement les fichiers absents
+                if not local_photo.exists():
+                    shutil.copy2(
+                        network_photo,
+                        local_photo
+                    )
+
+                    photos_updated = True
+
+            return photos_updated
+
+        except (PermissionError, OSError):
+            return False
 
     def organe_selected(self, value):
         if value not in self.materiels_data:
@@ -368,13 +705,11 @@ class PageDepannage(ctk.CTkFrame):
         ctk.CTkButton(
             btn_frame,
             text="Modifier",
-            command=lambda: (
-                popup.destroy(),
-                self.ajouter_depannage(
-                    organe,
-                    sous,
-                    self.etape_selected
-                )
+            command=lambda: self.modifier_depannage(
+                popup,
+                organe,
+                sous,
+                self.etape_selected
             )
         ).pack(side="left", padx=(0,10))
 
@@ -392,6 +727,51 @@ class PageDepannage(ctk.CTkFrame):
             text="Fermer",
             command=popup.destroy
         ).pack(side="left", padx=(10,0))
+
+    def modifier_depannage(self, popup, organe, sous, data_existante):
+        """
+        Synchronise la base avant de permettre la modification
+        d'une procédure existante.
+        """
+
+        if data_existante is None:
+            msg.showwarning(
+                "Aucune étape sélectionnée",
+                "Veuillez sélectionner une étape avant de la modifier."
+            )
+            return
+
+        popup.destroy()
+
+        # Synchronisation avant modification
+        if self.network_depannage_available():
+            self.sync_depannage_database(show_popup=False)
+
+        # Relecture de la base APRÈS synchronisation
+        depannages = load_depannage_file(DEPANNAGE_FILE)
+
+        key_recherchee = depannage_key(data_existante)
+
+        data_actualisee = next(
+            (
+                d for d in depannages
+                if depannage_key(d) == key_recherchee
+            ),
+            None
+        )
+
+        if data_actualisee is None:
+            msg.showwarning(
+                "Procédure introuvable",
+                "Cette procédure n'existe plus dans la base de dépannage."
+            )
+            return
+
+        self.ajouter_depannage(
+            organe,
+            sous,
+            data_actualisee
+        )
 
     def ajouter_depannage(self, organe, sous, data_existante=None):
         popup = ctk.CTkToplevel(self)
@@ -509,6 +889,14 @@ class PageDepannage(ctk.CTkFrame):
 
         update_carrousel()
 
+        # Copie de référence de la procédure au moment
+        # où la fenêtre de modification a été ouverte
+        original_data = (
+            dict(data_existante)
+            if data_existante
+            else None
+        )
+
         # --- Boutons Valider / Annuler ---
         def valider():
             scenario_val = scenario_entry.get()
@@ -518,6 +906,55 @@ class PageDepannage(ctk.CTkFrame):
             if not scenario_val or not etape_val or not description_val:
                 msg.showerror("Erreur", "Veuillez remplir tous les champs obligatoires.")
                 return
+
+            # ==================================================
+            # CONTRÔLE DE CONCURRENCE AVANT MODIFICATION
+            # ==================================================
+            if data_existante and self.network_depannage_available():
+
+                network_depannages = load_depannage_file(
+                    DEPANNAGE_NETWORK_FILE
+                )
+
+                original_key = depannage_key(original_data)
+
+                network_current = next(
+                    (
+                        d for d in network_depannages
+                        if depannage_key(d) == original_key
+                    ),
+                    None
+                )
+
+                # La procédure existe sur le réseau mais son contenu
+                # a changé depuis l'ouverture du formulaire
+                if (
+                    network_current is not None
+                    and network_current != original_data
+                ):
+                    msg.showwarning(
+                        "Procédure mise à jour",
+                        "Cette procédure a été modifiée par un autre collaborateur "
+                        "pendant votre modification.\n\n"
+                        "La dernière version du réseau va être récupérée.\n"
+                        "Veuillez effectuer votre modification à nouveau."
+                    )
+
+                    # Récupère automatiquement la dernière base
+                    self.sync_depannage_database(
+                        show_popup=False
+                    )
+
+                    popup.destroy()
+
+                    # Réouvre immédiatement la dernière version
+                    self.ajouter_depannage(
+                        organe,
+                        sous,
+                        network_current
+                    )
+
+                    return
 
             # Copie des photos dans IMAGES_DIR et renommage
             saved_photos = []
@@ -532,7 +969,15 @@ class PageDepannage(ctk.CTkFrame):
 
                 # Cas 2 : nouvelle photo choisie par l'utilisateur, on la copie
                 ext = path.suffix
-                filename = f"{organe}_{sous}_{scenario_val}_{etape_val}_{idx}{ext}"
+
+                unique_id = uuid.uuid4().hex[:8]
+
+                filename = (
+                    f"{organe}_{sous}_"
+                    f"{scenario_val}_{etape_val}_"
+                    f"{idx}_{unique_id}{ext.lower()}"
+                )
+                
                 dest = IMAGES_DIR / filename
                 try:
                     shutil.copy(path, dest)
@@ -578,11 +1023,18 @@ class PageDepannage(ctk.CTkFrame):
 
             data["depannages"].append(new_data)
 
-            # Sauvegarde
+            # Sauvegarde locale
             with open(DEPANNAGE_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=4)
 
-            msg.showinfo("Succès", "Procédure ajoutée avec succès.")
+            # Synchronisation automatique avec la base EK1
+            self.sync_depannage_database(show_popup=False)
+
+            msg.showinfo(
+                "Succès",
+                "Procédure enregistrée avec succès."
+            )
+
             popup.destroy()
 
         btn_frame = ctk.CTkFrame(frame)

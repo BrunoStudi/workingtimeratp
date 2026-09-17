@@ -22,7 +22,18 @@ CONFIG_DIR = APP_DATA_DIR / "config"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
+# =========== Base de dépannage locale ====================
 DEPANNAGE_FILE = DATA_DIR / "depannage.json"
+
+# =========== Base dépannage partagée EK1 =================
+DEPANNAGE_NETWORK_FILE = Path(
+    r"S:\EK1\03-PARTAGE\AME\depannage.json"
+)
+
+DEPANNAGE_NETWORK_IMAGES_DIR = Path(
+    r"S:\EK1\03-PARTAGE\AME\wtratp_pictures"
+)
+
 MATERIELS_FILE = DATA_DIR / "materiels.json"
 CONSOMMABLES_FILE = DATA_DIR / "consommables.jsonl"
 EXCEL_RESEAU = r"S:\EK1\03-PARTAGE\AME\articles-ref.xlsx"

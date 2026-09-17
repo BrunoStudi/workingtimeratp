@@ -14,7 +14,7 @@ from reportlab.lib.utils import ImageReader
 from datetime import datetime
 from reportlab.pdfgen import canvas
 from collections import defaultdict
-from config.paths import DATA_FILE
+from config.paths import DATA_FILE, resource_path
 
 
 # ------------Couleur des mois pour feuille excel-------------------
@@ -346,7 +346,10 @@ class PageHistorique(ctk.CTkFrame):
 
         popup = ctk.CTkToplevel(self)
         popup.title("Description de l'intervention")
-        popup.iconbitmap("ui/assets/train.ico")
+        try:
+            popup.iconbitmap(resource_path("ui/assets/train.ico"))
+        except Exception:
+            pass
         popup.geometry("500x320")
         popup.grab_set()
 
@@ -604,7 +607,10 @@ class PageHistorique(ctk.CTkFrame):
 
         popup = ctk.CTkToplevel(self)
         popup.title("Modifier la saisie Magellan")
-        popup.iconbitmap("ui/assets/train.ico")
+        try:
+            popup.iconbitmap(resource_path("ui/assets/train.ico"))
+        except Exception:
+            pass
         popup.geometry("320x150")
         popup.grab_set()
 
