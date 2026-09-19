@@ -1,21 +1,44 @@
-import customtkinter as ctk
-import tkinter as tk
 import json
+import tkinter as tk
 
-from utils.page_lang import PageLang
-from tkinter import ttk, messagebox
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from tkinter.filedialog import asksaveasfilename
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.lib.colors import HexColor
-from reportlab.lib.utils import ImageReader
-from datetime import datetime
-from reportlab.pdfgen import canvas
 from collections import defaultdict
-from config.paths import DATA_FILE, resource_path
+from datetime import datetime
+from tkinter import messagebox, ttk
+from tkinter.filedialog import asksaveasfilename
 
+import customtkinter as ctk
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from reportlab.lib.colors import HexColor
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas
+
+from config.paths import DATA_FILE, resource_path
+from utils.page_lang import PageLang
+
+
+HEADER_COLOR = "#1E5CC4"
+DELETE_COLOR = "#AA0000"
+DELETE_HOVER_COLOR = "#640000"
+EXCEL_COLOR = "#00854D"
+EXCEL_HOVER_COLOR = "#004724"
+PDF_COLOR = "#8400C2"
+PDF_HOVER_COLOR = "#3B005E"
+
+WORKDAY_MINUTES = 454
+MAX_HV_PER_DAY = 454
+
+TREE_COLUMNS = (
+    "jour",
+    "heure_debut",
+    "heure_fin",
+    "temps_total",
+    "hv",
+    "organes",
+    "sous_organes",
+    "saisie_magellan",
+)
 
 # ------------Couleur des mois pour feuille excel-------------------
 MONTH_COLORS = {
@@ -57,7 +80,7 @@ def draw_rounded_box(c, x, y, width, height, radius=8, color="#1E5CC4"):
     c.roundRect(x, y, width, height, radius, stroke=0, fill=1)
 
 # Récupérer les années disponibles du document
-def get_available_years(self, entries):
+def get_available_years(entries):
     return sorted({
         e["jour"].split("-")[0]
         for e in entries
@@ -85,8 +108,11 @@ def format_month_fr(month_key):
 
 # ----------- Classe principale "Historique" -----------------------
 class PageHistorique(ctk.CTkFrame):
+    """Historique des interventions, filtres et exports annuels."""
+
     def __init__(self, parent, app):
         super().__init__(parent)
+
         self.app = app
         self.lang_util = PageLang(app)
 
@@ -95,88 +121,199 @@ class PageHistorique(ctk.CTkFrame):
 
         self.selected_year = ctk.StringVar()
         self.selected_month = ctk.StringVar()
+        self.search_var = ctk.StringVar()
 
+        self._initialize_period_filters()
+        self._create_header()
+        self._create_search_bar()
+        self._create_action_buttons()
+        self._create_period_filters()
+        self._create_treeview()
+        self._create_context_menu()
+
+        self.load_data()
+
+    # ------------------------------------------------------------------
+    # Initialisation / construction de l'interface
+    # ------------------------------------------------------------------
+
+    def _initialize_period_filters(self):
         now = datetime.now()
         self.selected_year.set(str(now.year))
         self.selected_month.set(f"{now.month:02d}")
-       
-        # -------------------- Header ------------------------------
-        self.header = ctk.CTkFrame(self, border_width=1, border_color="blue", fg_color="#1E5CC4", height=60)
+
+    def _create_header(self):
+        self.header = ctk.CTkFrame(
+            self,
+            border_width=1,
+            border_color="blue",
+            fg_color=HEADER_COLOR,
+            height=60,
+        )
         self.header.pack(fill="x", pady=5, padx=5)
-        self.header_label = ctk.CTkLabel(self.header, text=self.lang_util.t("historique_titre"), font=("Roboto", 24), text_color="white")
-        self.header_label.place(relx=0.5, rely=0.5, anchor="center")
 
-        # ------------- Recherche d'un organe ----------------------
-        search_frame = ctk.CTkFrame(self, border_width=1, border_color=("gray68", "gray30"))
-        search_frame.pack(fill="x", padx=5, pady=5)
+        self.header_label = ctk.CTkLabel(
+            self.header,
+            text=self.lang_util.t("historique_titre"),
+            font=("Roboto", 24),
+            text_color="white",
+        )
+        self.header_label.place(
+            relx=0.5,
+            rely=0.5,
+            anchor="center",
+        )
 
-        self.search_label = ctk.CTkLabel(search_frame, text=self.lang_util.t("rechercher_organe"))
-        self.search_label.pack(side="left", padx=5, pady=5)
+    def _create_search_bar(self):
+        search_frame = ctk.CTkFrame(
+            self,
+            border_width=1,
+            border_color=("gray68", "gray30"),
+        )
+        search_frame.pack(
+            fill="x",
+            padx=5,
+            pady=5,
+        )
 
-        self.search_var = ctk.StringVar()
-        search_entry = ctk.CTkEntry(search_frame, textvariable=self.search_var, width=200)
-        search_entry.pack(side="left", padx=5)
+        self.search_label = ctk.CTkLabel(
+            search_frame,
+            text=self.lang_util.t("rechercher_organe"),
+        )
+        self.search_label.pack(
+            side="left",
+            padx=5,
+            pady=5,
+        )
+
+        self.search_entry = ctk.CTkEntry(
+            search_frame,
+            textvariable=self.search_var,
+            width=200,
+        )
+        self.search_entry.pack(
+            side="left",
+            padx=5,
+        )
 
         self.btn_search = ctk.CTkButton(
             search_frame,
             text=self.lang_util.t("rechercher"),
-            command=self.search_organ
+            command=self.search_organ,
         )
-        self.btn_search.pack(side="left", padx=5)
+        self.btn_search.pack(
+            side="left",
+            padx=5,
+        )
 
         self.btn_reset = ctk.CTkButton(
             search_frame,
             text=self.lang_util.t("reinitialiser"),
-            command=self.refresh
+            command=self.refresh,
         )
-        self.btn_reset.pack(side="left", padx=5)
+        self.btn_reset.pack(
+            side="left",
+            padx=5,
+        )
 
-        # ---------- Frame pour les boutons ------------------------
-        buttons_frame = ctk.CTkFrame(self, fg_color="transparent")
+    def _create_action_buttons(self):
+        buttons_frame = ctk.CTkFrame(
+            self,
+            fg_color="transparent",
+        )
         buttons_frame.pack(pady=10)
 
-        self.btn_refresh = ctk.CTkButton(buttons_frame, text=self.lang_util.t("rafraichir"), command=self.refresh)
-        self.btn_refresh.grid(row=0, column=0, padx=5)
-        self.btn_deleteall = ctk.CTkButton(buttons_frame, text=self.lang_util.t("tout_supprim"), command=self.clear_data, fg_color="#AA0000", hover_color="#640000")
-        self.btn_deleteall.grid(row=0, column=1, padx=5)
+        self.btn_refresh = ctk.CTkButton(
+            buttons_frame,
+            text=self.lang_util.t("rafraichir"),
+            command=self.refresh,
+        )
+        self.btn_refresh.grid(
+            row=0,
+            column=0,
+            padx=5,
+        )
 
-        # --------- Bouton export Excel et PDF ---------------------
-        self.btn_excel = ctk.CTkButton(buttons_frame, text=self.lang_util.t("excel"), command=self.export_excel, fg_color="#00854D", hover_color="#004724")
-        self.btn_excel.grid(row=0, column=2, padx=5)
-        self.btn_pdf = ctk.CTkButton(buttons_frame, text=self.lang_util.t("pdf"), command=self.export_pdf, fg_color="#8400C2", hover_color="#3B005E")
-        self.btn_pdf.grid(row=0, column=3, padx=5)
+        self.btn_deleteall = ctk.CTkButton(
+            buttons_frame,
+            text=self.lang_util.t("tout_supprim"),
+            command=self.clear_data,
+            fg_color=DELETE_COLOR,
+            hover_color=DELETE_HOVER_COLOR,
+        )
+        self.btn_deleteall.grid(
+            row=0,
+            column=1,
+            padx=5,
+        )
 
-        # --- Filtres Année / Mois ---
-        filter_container = ctk.CTkFrame(self, fg_color="transparent")
-        filter_container.pack(fill="x", pady=(10, 15))
-        filter_frame = ctk.CTkFrame(filter_container, fg_color="transparent")
+        self.btn_excel = ctk.CTkButton(
+            buttons_frame,
+            text=self.lang_util.t("excel"),
+            command=self.export_excel,
+            fg_color=EXCEL_COLOR,
+            hover_color=EXCEL_HOVER_COLOR,
+        )
+        self.btn_excel.grid(
+            row=0,
+            column=2,
+            padx=5,
+        )
+
+        self.btn_pdf = ctk.CTkButton(
+            buttons_frame,
+            text=self.lang_util.t("pdf"),
+            command=self.export_pdf,
+            fg_color=PDF_COLOR,
+            hover_color=PDF_HOVER_COLOR,
+        )
+        self.btn_pdf.grid(
+            row=0,
+            column=3,
+            padx=5,
+        )
+
+    def _create_period_filters(self):
+        filter_container = ctk.CTkFrame(
+            self,
+            fg_color="transparent",
+        )
+        filter_container.pack(
+            fill="x",
+            pady=(10, 15),
+        )
+
+        filter_frame = ctk.CTkFrame(
+            filter_container,
+            fg_color="transparent",
+        )
         filter_frame.pack(anchor="center")
 
-        # --- Dropdown mois ---
         self.month_combo = ctk.CTkComboBox(
             filter_frame,
             variable=self.selected_month,
-            values=[f"{i:02d}" for i in range(1, 13)],
+            values=[f"{month:02d}" for month in range(1, 13)],
             width=140,
-            command=lambda _: self.refresh_treeview()
+            command=lambda _: self.refresh_treeview(),
         )
-        self.month_combo.pack(side="left", padx=10)
+        self.month_combo.pack(
+            side="left",
+            padx=10,
+        )
 
-        # --- Dropdown années ---
         self.year_combo = ctk.CTkComboBox(
             filter_frame,
             variable=self.selected_year,
             values=[],
             width=120,
-            command=lambda _: self.refresh_treeview()
+            command=lambda _: self.refresh_treeview(),
         )
-        self.year_combo.pack(side="left", padx=10)
+        self.year_combo.pack(
+            side="left",
+            padx=10,
+        )
 
-        # --------- Treeview ---------------------------------------
-        columns = (
-            "jour", "heure_debut", "heure_fin", "temps_total",
-            "hv", "organes", "sous_organes", "saisie_magellan"
-        )
+    def _create_treeview(self):
         self.column_headers = {
             "jour": "historique_col_jour",
             "heure_debut": "historique_col_heure_debut",
@@ -188,58 +325,95 @@ class PageHistorique(ctk.CTkFrame):
             "saisie_magellan": "historique_col_saisie_magellan",
         }
 
-        # --------- Frame conteneur Treeview + Scrollbar ------------------
         tree_container = ctk.CTkFrame(self)
-        tree_container.pack(fill="both", expand=True, padx=20, pady=10)
-
-        # --------- Treeview ----------------------------------------------
-        self.tree = ttk.Treeview(
-            tree_container,
-            columns=columns,
-            show="headings",
-            height=20
+        tree_container.pack(
+            fill="both",
+            expand=True,
+            padx=20,
+            pady=10,
         )
 
-        # Scrollbar verticale
+        self.tree = ttk.Treeview(
+            tree_container,
+            columns=TREE_COLUMNS,
+            show="headings",
+            height=20,
+        )
+
         scrollbar = ttk.Scrollbar(
             tree_container,
             orient="vertical",
-            command=self.tree.yview
+            command=self.tree.yview,
         )
-        self.tree.configure(yscrollcommand=scrollbar.set)
+        self.tree.configure(
+            yscrollcommand=scrollbar.set
+        )
 
-        # Placement avec grid (UNIQUEMENT dans ce frame)
-        self.tree.grid(row=0, column=0, sticky="nsew")
-        scrollbar.grid(row=0, column=1, sticky="ns")
+        self.tree.grid(
+            row=0,
+            column=0,
+            sticky="nsew",
+        )
+        scrollbar.grid(
+            row=0,
+            column=1,
+            sticky="ns",
+        )
 
-        tree_container.grid_rowconfigure(0, weight=1)
-        tree_container.grid_columnconfigure(0, weight=1)
-        
-        # --------- Bind double click ------------------------------
-        self.tree.bind("<Double-1>", self.on_double_click)
+        tree_container.grid_rowconfigure(
+            0,
+            weight=1,
+        )
+        tree_container.grid_columnconfigure(
+            0,
+            weight=1,
+        )
 
-        # --------- Définir les styles de tags ---------------------
-        self.tree.tag_configure("magellan_non", background="#ffb366")  # orange clair
-        self.tree.tag_configure("magellan_oui", background="#f2f2f2")  # gris très clair
+        self.tree.bind(
+            "<Double-1>",
+            self.on_double_click,
+        )
+        self.tree.bind(
+            "<Button-3>",
+            self.on_right_click,
+        )
 
-        for col in columns:
+        self.tree.tag_configure(
+            "magellan_non",
+            background="#ffb366",
+        )
+        self.tree.tag_configure(
+            "magellan_oui",
+            background="#f2f2f2",
+        )
+
+        for column in TREE_COLUMNS:
             self.tree.heading(
-                col,
-                text=self.lang_util.t(self.column_headers[col])
+                column,
+                text=self.lang_util.t(
+                    self.column_headers[column]
+                ),
             )
-            self.tree.column(col, width=120, anchor="center")
+            self.tree.column(
+                column,
+                width=120,
+                anchor="center",
+            )
 
-        # --------- Menu contextuel clic droit ----------------------
-        self.menu = tk.Menu(self, tearoff=0)
-        self.menu.add_command(label="Description", command=self.show_description_popup)
+    def _create_context_menu(self):
+        self.menu = tk.Menu(
+            self,
+            tearoff=0,
+        )
+        self.menu.add_command(
+            label="Description",
+            command=self.show_description_popup,
+        )
         self.menu.add_separator()
-        self.menu.add_command(label="Supprimer", command=self.delete_selected_row)
-
-        # --------- Double clic "saisie magellan" -------------------
-        self.tree.bind("<Button-3>", self.on_right_click)
-
-        # --------- Charger les données -----------------------------
-        self.load_data()
+        self.menu.add_command(
+            label="Supprimer",
+            command=self.delete_selected_row,
+        )
 
     # --- Méthode pour le filtrage années et mois -------------------
     def refresh_treeview(self):
@@ -311,7 +485,7 @@ class PageHistorique(ctk.CTkFrame):
                     continue
                 try:
                     data = json.loads(line)
-                except:
+                except json.JSONDecodeError:
                     continue
 
                 # On garde toutes les lignes SAUF celle à supprimer
@@ -478,7 +652,7 @@ class PageHistorique(ctk.CTkFrame):
                 for e in self.all_entries
                 if e.get("jour") == entry.get("jour") and not e.get("hv_reset", False)
             )
-            hv_minutes = max(0, total_jour - 454)
+            hv_minutes = max(0, total_jour - WORKDAY_MINUTES)
             hv_format = f"+{hv_minutes//60}h{hv_minutes%60:02d}"
 
             iid = f"row_{row_index}"
@@ -561,7 +735,7 @@ class PageHistorique(ctk.CTkFrame):
                 for e in self.all_entries
                 if e.get("jour") == entry.get("jour") and not e.get("hv_reset", False)
             )
-            hv_minutes = max(0, total_jour - 454)  # 454 = 7h34min
+            hv_minutes = max(0, total_jour - WORKDAY_MINUTES)  # 454 = 7h34min
             hv_format = f"+{hv_minutes//60}h{hv_minutes%60:02d}"
 
             iid = f"row_{row_index}"
@@ -644,7 +818,7 @@ class PageHistorique(ctk.CTkFrame):
                     continue
                 try:
                     data = json.loads(line)
-                except:
+                except json.JSONDecodeError:
                     continue
 
                 if (data.get("jour") == jour and 
@@ -690,8 +864,8 @@ class PageHistorique(ctk.CTkFrame):
         rows_by_month = defaultdict(list)
 
         # -------- Calcul HV cumulées comme page accueil --------
-        MAX_JOURNEE = 454
-        MAX_HV_PAR_JOUR = 454
+        MAX_JOURNEE = WORKDAY_MINUTES
+        MAX_HV_PAR_JOUR = MAX_HV_PER_DAY
 
         hv_par_jour = {}
 
@@ -846,8 +1020,8 @@ class PageHistorique(ctk.CTkFrame):
             messagebox.showinfo("Export PDF", "Aucune donnée pour cette année.")
             return
 
-        MAX_JOURNEE = 454
-        MAX_HV_PAR_JOUR = 454
+        MAX_JOURNEE = WORKDAY_MINUTES
+        MAX_HV_PAR_JOUR = MAX_HV_PER_DAY
 
         hv_par_jour = {}
         entries_by_day = defaultdict(list)

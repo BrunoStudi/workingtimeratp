@@ -1,312 +1,332 @@
-import customtkinter as ctk
 import json
 import re
 
 from datetime import date, datetime
-from utils.page_lang import PageLang
 from tkinter import messagebox
-from config.paths import MATERIELS_FILE, DATA_FILE, resource_path
+
+import customtkinter as ctk
+
+from config.paths import DATA_FILE, MATERIELS_FILE, resource_path
+from utils.page_lang import PageLang
+
+HEADER_COLOR = "#1E5CC4"
+POPUP_BUTTON_COLOR = "#404040"
+POPUP_BUTTON_HOVER_COLOR = "#202020"
+
+DAILY_LIMIT_MINUTES = 8 * 60 + 24
+NUMBER_PATTERN = re.compile(r"^([A-Za-z]\d{2,4}|\d{2,5})$")
+
+HOUR_POPUP_SIZE = "280x300"
+MINUTE_POPUP_SIZE = "350x430"
+
 
 class PageSaisie(ctk.CTkFrame):
     def __init__(self, parent, app):
         super().__init__(parent)
-        self.app = app
 
-        # Création de l'utilitaire de traduction
+        self.app = app
         self.lang_util = PageLang(app)
 
-        # Variable des boutons popup a NONE 
-        # pour eviter le crash de l'application lors de la traduction
+        # Références vers les boutons des popups, utilisées par
+        # refresh_language() uniquement lorsque les popups existent.
         self.btn_h_close = None
         self.btn_m_close = None
 
-        # --- Header ---
-        header = ctk.CTkFrame(
-            self, 
-            border_width=1, 
-            border_color="blue", 
-            fg_color="#1E5CC4", 
-            height=60)
-        header.pack(
-            fill="x", 
-            pady=5, 
-            padx=5)
-        self.header_label=ctk.CTkLabel(
-            header, 
-            text=self.lang_util.t("saisie_intervention"), 
-            font=("Roboto", 24), 
-            text_color="white")
-        self.header_label.place(
-            relx=0.5, 
-            rely=0.5, 
-            anchor="center")
+        self.materiels_dict = {}
 
-        # --- Bloc Temps ---
+        self._create_header()
+        self._create_time_section()
+        self._create_support_section()
+        self._create_material_section()
+        self._create_description_section()
+        self._create_magellan_section()
+        self._create_save_button()
+
+        self.load_materiels_dropdown()
+
+    # ------------------------------------------------------------------
+    # Construction de l'interface
+    # ------------------------------------------------------------------
+
+    def _create_header(self):
+        header = ctk.CTkFrame(
+            self,
+            border_width=1,
+            border_color="blue",
+            fg_color=HEADER_COLOR,
+            height=60,
+        )
+        header.pack(
+            fill="x",
+            pady=5,
+            padx=5,
+        )
+
+        self.header_label = ctk.CTkLabel(
+            header,
+            text=self.lang_util.t("saisie_intervention"),
+            font=("Roboto", 24),
+            text_color="white",
+        )
+        self.header_label.place(
+            relx=0.5,
+            rely=0.5,
+            anchor="center",
+        )
+
+    def _create_time_section(self):
         frame_time = ctk.CTkFrame(
-            self, 
-            fg_color="transparent")
+            self,
+            fg_color="transparent",
+        )
         frame_time.pack(
             pady=40,
             anchor="w",
-            padx=(245, 5))
+            padx=(245, 5),
+        )
 
-        # Heure de début
-        self.label_h_debut=ctk.CTkLabel(
-            frame_time, 
-            text=self.lang_util.t("heure_debut"), 
-            font=("Roboto", 16))
-        
-        self.label_h_debut.grid(
-            row=0, 
-            column=0, 
-            padx=10, 
-            pady=10, 
-            sticky="w")
-        
+        (
+            self.label_h_debut,
+            self.entry_h_debut,
+            self.entry_m_debut,
+        ) = self._create_time_row(
+            frame_time,
+            row=0,
+            label_key="heure_debut",
+            mode="debut",
+        )
+
+        (
+            self.label_h_fin,
+            self.entry_h_fin,
+            self.entry_m_fin,
+        ) = self._create_time_row(
+            frame_time,
+            row=1,
+            label_key="heure_fin",
+            mode="fin",
+        )
+
+    def _create_time_row(
+        self,
+        parent,
+        row,
+        label_key,
+        mode,
+    ):
+        label = ctk.CTkLabel(
+            parent,
+            text=self.lang_util.t(label_key),
+            font=("Roboto", 16),
+        )
+        label.grid(
+            row=row,
+            column=0,
+            padx=10,
+            pady=10,
+            sticky="w",
+        )
+
         ctk.CTkButton(
-            frame_time, 
-            text="H", 
-            width=40, 
-            height=35, 
-            command=lambda: self.open_hour_selector("debut")).grid(
-                row=0, 
-                column=1, 
-                padx=5)
-        
-        self.entry_h_debut = ctk.CTkEntry(
-            frame_time, 
-            width=60, 
-            justify="center")
-        
-        self.entry_h_debut.grid(
-            row=0, 
-            column=2, 
-            padx=5)
+            parent,
+            text="H",
+            width=40,
+            height=35,
+            command=lambda: self.open_hour_selector(mode),
+        ).grid(
+            row=row,
+            column=1,
+            padx=5,
+        )
 
-        # label ":"
+        hour_entry = ctk.CTkEntry(
+            parent,
+            width=60,
+            justify="center",
+        )
+        hour_entry.grid(
+            row=row,
+            column=2,
+            padx=5,
+        )
+
         ctk.CTkLabel(
-            frame_time, 
-            text=":", 
-            font=("Roboto", 18)).grid(
-                row=0, 
-                column=3, 
-                padx=2)
+            parent,
+            text=":",
+            font=("Roboto", 18),
+        ).grid(
+            row=row,
+            column=3,
+            padx=2,
+        )
 
-        self.entry_m_debut = ctk.CTkEntry(
-            frame_time, 
-            width=60, 
-            justify="center")
-        
-        self.entry_m_debut.grid(
-            row=0, 
-            column=4, 
-            padx=5)
-
-        ctk.CTkButton(
-            frame_time, 
-            text="M", 
-            width=40, 
-            height=35, 
-            command=lambda: self.open_minute_selector("debut")).grid(
-                row=0, 
-                column=5, 
-                padx=5)
-
-       # Heure de fin
-        self.label_h_fin=ctk.CTkLabel(
-            frame_time, 
-            text=self.lang_util.t("heure_fin"), 
-            font=("Roboto", 16))
-        
-        self.label_h_fin.grid(
-            row=1, 
-            column=0, 
-            padx=10, 
-            pady=10, 
-            sticky="w")
-        
-        ctk.CTkButton(
-            frame_time, 
-            text="H", 
-            width=40, 
-            height=35, 
-            command=lambda: self.open_hour_selector("fin")).grid(
-                row=1, 
-                column=1, 
-                padx=5)
-        
-        self.entry_h_fin = ctk.CTkEntry(
-            frame_time, 
-            width=60, 
-            justify="center")
-        
-        self.entry_h_fin.grid(
-            row=1, 
-            column=2, 
-            padx=5)
-
-        # label ":"
-        ctk.CTkLabel(
-            frame_time, 
-            text=":", 
-            font=("Roboto", 18)).grid(
-                row=1, 
-                column=3, 
-                padx=2)
-
-        self.entry_m_fin = ctk.CTkEntry(
-            frame_time, 
-            width=60, 
-            justify="center")
-        
-        self.entry_m_fin.grid(
-            row=1, 
-            column=4, 
-            padx=5)
+        minute_entry = ctk.CTkEntry(
+            parent,
+            width=60,
+            justify="center",
+        )
+        minute_entry.grid(
+            row=row,
+            column=4,
+            padx=5,
+        )
 
         ctk.CTkButton(
-            frame_time, 
-            text="M", 
-            width=40, 
-            height=35, 
-            command=lambda: self.open_minute_selector("fin")).grid(
-                row=1, 
-                column=5, 
-                padx=5)
+            parent,
+            text="M",
+            width=40,
+            height=35,
+            command=lambda: self.open_minute_selector(mode),
+        ).grid(
+            row=row,
+            column=5,
+            padx=5,
+        )
 
-        # --- Checkbox Activité support ---
+        return label, hour_entry, minute_entry
+
+    def _create_support_section(self):
         self.support_var = ctk.BooleanVar()
+
         self.check_support = ctk.CTkCheckBox(
             self,
             text=self.lang_util.t("activite_support"),
             variable=self.support_var,
-            command=self.toggle_support
+            command=self.toggle_support,
         )
-        self.check_support.pack(pady=(10, 0))
+        self.check_support.pack(
+            pady=(10, 0)
+        )
 
-        # --- Dropdown Matériel / Sous-matériel ---
+    def _create_material_section(self):
         frame_mat = ctk.CTkFrame(
-            self, 
-            fg_color="transparent")
+            self,
+            fg_color="transparent",
+        )
         frame_mat.pack(
             pady=20,
             anchor="w",
-            padx=(245, 5))
+            padx=(245, 5),
+        )
 
-        self.label_materiel=ctk.CTkLabel(
-            frame_mat, 
-            text=self.lang_util.t("organe"), 
-            font=("Roboto", 16))
-        
+        self.label_materiel = ctk.CTkLabel(
+            frame_mat,
+            text=self.lang_util.t("organe"),
+            font=("Roboto", 16),
+        )
         self.label_materiel.grid(
-            row=0, 
-            column=0, 
-            padx=10, 
-            pady=5, 
-            sticky="w")
-        
+            row=0,
+            column=0,
+            padx=10,
+            pady=5,
+            sticky="w",
+        )
+
         self.dropdown_materiel = ctk.CTkComboBox(
-            frame_mat, 
-            values=[], 
-            command=self.update_sous)
-        
+            frame_mat,
+            values=[],
+            command=self.update_sous,
+        )
         self.dropdown_materiel.grid(
-            row=0, 
-            column=1, 
-            padx=5)
+            row=0,
+            column=1,
+            padx=5,
+        )
 
         self.entry_num_materiel = ctk.CTkEntry(
             frame_mat,
             width=80,
-            placeholder_text="N°"
+            placeholder_text="N°",
+        )
+        self.entry_num_materiel.grid(
+            row=0,
+            column=2,
+            padx=(5, 0),
         )
 
-        self.entry_num_materiel.grid(
-            row=0, 
-            column=2, 
-            padx=(5, 0))
-
-        self.label_sous=ctk.CTkLabel(
-            frame_mat, 
-            text=self.lang_util.t("sous_organe"), 
-            font=("Roboto", 16))
-        
+        self.label_sous = ctk.CTkLabel(
+            frame_mat,
+            text=self.lang_util.t("sous_organe"),
+            font=("Roboto", 16),
+        )
         self.label_sous.grid(
-            row=1, 
-            column=0, 
-            padx=10, 
-            pady=10, 
-            sticky="w")
-        
+            row=1,
+            column=0,
+            padx=10,
+            pady=10,
+            sticky="w",
+        )
+
         self.dropdown_sous = ctk.CTkComboBox(
-            frame_mat, 
-            values=[])
-        
+            frame_mat,
+            values=[],
+        )
         self.dropdown_sous.grid(
-            row=1, 
-            column=1, 
-            padx=5)
+            row=1,
+            column=1,
+            padx=5,
+        )
 
         self.entry_num_sous = ctk.CTkEntry(
             frame_mat,
             width=80,
-            placeholder_text="N°"
+            placeholder_text="N°",
         )
-
         self.entry_num_sous.grid(
-            row=1, 
-            column=2, 
-            padx=(5, 0))
-
-        # CheckBox
-        self.no_sous_var = ctk.BooleanVar()
-        self.check_no_sub = ctk.CTkCheckBox(
-            frame_mat, 
-            text=self.lang_util.t("pas_de_sous_organe"), 
-            variable=self.no_sous_var, 
-            command=self.toggle_sous)
-        
-        self.no_organe_var = ctk.BooleanVar()
-        self.check_no_organe = ctk.CTkCheckBox(
-            frame_mat,
-            text=self.lang_util.t("pas_d_organe"),
-            variable=self.no_organe_var,
-            command=self.toggle_organe
+            row=1,
+            column=2,
+            padx=(5, 0),
         )
 
+        self.no_sous_var = ctk.BooleanVar()
+        self.no_organe_var = ctk.BooleanVar()
+
+        self.check_no_sub = ctk.CTkCheckBox(
+            frame_mat,
+            text=self.lang_util.t("pas_de_sous_organe"),
+            variable=self.no_sous_var,
+            command=self.toggle_sous,
+        )
         self.check_no_sub.grid(
             row=2,
             column=2,
             pady=10,
-            sticky="w"
+            sticky="w",
         )
 
+        self.check_no_organe = ctk.CTkCheckBox(
+            frame_mat,
+            text=self.lang_util.t("pas_d_organe"),
+            variable=self.no_organe_var,
+            command=self.toggle_organe,
+        )
         self.check_no_organe.grid(
             row=2,
             column=1,
             pady=10,
             padx=(10, 0),
-            sticky="w"
+            sticky="w",
         )
 
-        # --- Description de l'intervention ---
+    def _create_description_section(self):
         frame_desc = ctk.CTkFrame(
-            self, 
-            fg_color="transparent")
-        
+            self,
+            fg_color="transparent",
+        )
         frame_desc.pack(
-            pady=(10, 0), 
-            padx=20)
+            pady=(10, 0),
+            padx=20,
+        )
 
-        self.label_desc=ctk.CTkLabel(
+        self.label_desc = ctk.CTkLabel(
             frame_desc,
             text=self.lang_util.t("description_intervention"),
-            font=("Roboto", 16)
+            font=("Roboto", 16),
         )
-
         self.label_desc.pack(
-            anchor="w", 
-            pady=(0, 5))
+            anchor="w",
+            pady=(0, 5),
+        )
 
         self.entry_description = ctk.CTkTextbox(
             frame_desc,
@@ -314,29 +334,33 @@ class PageSaisie(ctk.CTkFrame):
             wrap="word",
             width=600,
             border_width=1,
-            border_color="black"
+            border_color="black",
+        )
+        self.entry_description.pack(
+            fill="x"
         )
 
-        self.entry_description.pack(fill="x")
-
-        # Checkbox Magellan
+    def _create_magellan_section(self):
         self.ext_done = ctk.BooleanVar()
-        self.check_magellan=ctk.CTkCheckBox(
-            self, 
-            text=self.lang_util.t("saisie_magellan"), 
-            variable=self.ext_done)
-        
-        self.check_magellan.pack(pady=(20,0))
 
-        # Valider
-        self.btn_save=ctk.CTkButton(
-            self, 
-            text=self.lang_util.t("enregistrer"), 
-            command=self.save)
-        
-        self.btn_save.pack(pady=(20,20))
+        self.check_magellan = ctk.CTkCheckBox(
+            self,
+            text=self.lang_util.t("saisie_magellan"),
+            variable=self.ext_done,
+        )
+        self.check_magellan.pack(
+            pady=(20, 0)
+        )
 
-        self.load_materiels_dropdown()
+    def _create_save_button(self):
+        self.btn_save = ctk.CTkButton(
+            self,
+            text=self.lang_util.t("enregistrer"),
+            command=self.save,
+        )
+        self.btn_save.pack(
+            pady=(20, 20)
+        )
 
     # Méthode pour detecter si on est Samedi ou Dimanche (jour de non travail)
     def is_weekend(self, date_str: str) -> bool:
@@ -346,7 +370,7 @@ class PageSaisie(ctk.CTkFrame):
         try:
             d = datetime.fromisoformat(date_str)
             return d.weekday() >= 5  # 5 = samedi, 6 = dimanche
-        except:
+        except (TypeError, ValueError):
             return False
 
     def reset_form(self):
@@ -411,7 +435,7 @@ class PageSaisie(ctk.CTkFrame):
             try:
                 with open(MATERIELS_FILE, "r", encoding="utf-8") as f:
                     self.materiels_dict = json.load(f).get("materiels", {})
-            except:
+            except (json.JSONDecodeError, OSError):
                 self.materiels_dict = {}
 
         materiels_keys = list(self.materiels_dict.keys())
@@ -575,7 +599,7 @@ class PageSaisie(ctk.CTkFrame):
             popup.iconbitmap(resource_path("ui/assets/train.ico"))
         except Exception:
             pass
-        popup.geometry("280x300")
+        popup.geometry(HOUR_POPUP_SIZE)
         popup.grab_set()
 
         popup.update_idletasks()
@@ -604,8 +628,8 @@ class PageSaisie(ctk.CTkFrame):
         self.btn_h_close=ctk.CTkButton(
             popup,
             text=self.lang_util.t("fermer"),
-            fg_color="#404040",
-            hover_color="#202020",
+            fg_color=POPUP_BUTTON_COLOR,
+            hover_color=POPUP_BUTTON_HOVER_COLOR,
             corner_radius=12,
             width=120,
             command=close_popup
@@ -626,7 +650,7 @@ class PageSaisie(ctk.CTkFrame):
             popup.iconbitmap(resource_path("ui/assets/train.ico"))
         except Exception:
             pass
-        popup.geometry("350x430")
+        popup.geometry(MINUTE_POPUP_SIZE)
         popup.grab_set()
 
         popup.update_idletasks()
@@ -655,8 +679,8 @@ class PageSaisie(ctk.CTkFrame):
         self.btn_m_close=ctk.CTkButton(
             popup,
             text=self.lang_util.t("fermer"),
-            fg_color="#404040",
-            hover_color="#202020",
+            fg_color=POPUP_BUTTON_COLOR,
+            hover_color=POPUP_BUTTON_HOVER_COLOR,
             corner_radius=12,
             width=120,
             command=close_popup
@@ -700,8 +724,8 @@ class PageSaisie(ctk.CTkFrame):
                         continue
                     try:
                         all_entries.append(json.loads(line))
-                    except Exception:
-                        # ignorer les lignes corrompues
+                    except json.JSONDecodeError:
+                        # Ignorer les lignes JSONL corrompues.
                         continue
 
         # Entrées du jour
@@ -782,9 +806,8 @@ class PageSaisie(ctk.CTkFrame):
                 except Exception:
                     continue
 
-        DAILY_LIMIT = 8 * 60 + 24  # 504 minutes
-        if total_today + new_duration > DAILY_LIMIT:
-            remaining = max(0, DAILY_LIMIT - total_today)
+        if total_today + new_duration > DAILY_LIMIT_MINUTES:
+            remaining = max(0, DAILY_LIMIT_MINUTES - total_today)
             rh = remaining // 60
             rm = remaining % 60
             texte = self.lang_util.t("limite_journaliere_depassee")
@@ -809,7 +832,7 @@ class PageSaisie(ctk.CTkFrame):
                 )
                 return
 
-            if not re.fullmatch(r"^([A-Za-z]\d{2,4}|\d{2,5})$", num_materiel):
+            if not NUMBER_PATTERN.fullmatch(num_materiel):
                 messagebox.showwarning(
                     self.lang_util.t("format_invalide"),
                     self.lang_util.t("numero_organe_format")
@@ -826,7 +849,7 @@ class PageSaisie(ctk.CTkFrame):
                     )
                     return
 
-                if not re.fullmatch(r"^([A-Za-z]\d{2,4}|\d{2,5})$", num_sous):
+                if not NUMBER_PATTERN.fullmatch(num_sous):
                     messagebox.showwarning(
                         self.lang_util.t("format_invalide"),
                         self.lang_util.t("numero_sous_organe_format")

@@ -28,3 +28,6 @@ depannage.json
 materiels.json
 settings.json
 user.json
+
+# Anciennes versions Python conservées localement
+*_old.py

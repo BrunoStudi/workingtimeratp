@@ -1,19 +1,38 @@
-import customtkinter as ctk
-import tkinter.messagebox as msg
-import shutil
 import json
+import shutil
 import uuid
 
-from PIL import Image
 from pathlib import Path
 from tkinter import filedialog
+import tkinter.messagebox as msg
+
+import customtkinter as ctk
+from PIL import Image
+
+from config.paths import (
+    DEPANNAGE_FILE,
+    DEPANNAGE_NETWORK_FILE,
+    DEPANNAGE_NETWORK_IMAGES_DIR,
+    MATERIELS_FILE,
+)
 from utils.page_lang import PageLang
-from config.paths import DEPANNAGE_FILE, DEPANNAGE_NETWORK_FILE, DEPANNAGE_NETWORK_IMAGES_DIR, MATERIELS_FILE
 
 
 # Enregistrement des images depannage dans pictures dossier utilisateur
 IMAGES_DIR = Path.home() / "Pictures" / "WorkingTimeRatp"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+
+HEADER_COLOR = "#1E5CC4"
+NETWORK_OK_COLOR = "#2E8B57"
+NETWORK_OFFLINE_COLOR = "#D97706"
+DELETE_COLOR = "#B91C1C"
+DELETE_HOVER_COLOR = "#991B1B"
+
+PROCEDURE_POPUP_SIZE = (540, 780)
+EDIT_POPUP_SIZE = (600, 750)
+IMAGE_POPUP_SIZE = (900, 735)
+IMAGE_PREVIEW_SIZE = (320, 240)
+IMAGE_LARGE_MAX_SIZE = (860, 620)
 
 # Chargement de la BDD json dépannages
 def load_depannages():
@@ -80,19 +99,52 @@ def depannage_exists(organe, sous_organe):
 
 # Classe principale
 class PageDepannage(ctk.CTkFrame):
+    """Page de consultation et de gestion collaborative des dépannages."""
+
     def __init__(self, parent, app):
         super().__init__(parent)
+
         self.app = app
         self.lang_util = PageLang(app)
 
-        # ================= HEADER =================
-        header = ctk.CTkFrame(self, border_width=1, border_color="blue", fg_color="#1E5CC4", height=60)
+        self._create_header()
+        self._create_sync_status()
+        self._create_selection_form()
+        self._create_ai_section()
+        self._load_initial_materials()
+
+        # Conserve le comportement actuel : état réseau immédiat puis
+        # synchronisation automatique peu après l'ouverture de la page.
+        self.update_network_status()
+        self.after(
+            500,
+            lambda: self.sync_depannage_database(show_popup=True),
+        )
+
+    # ------------------------------------------------------------------
+    # Construction de l'interface principale
+    # ------------------------------------------------------------------
+
+    def _create_header(self):
+        header = ctk.CTkFrame(
+            self,
+            border_width=1,
+            border_color="blue",
+            fg_color=HEADER_COLOR,
+            height=60,
+        )
         header.pack(fill="x", padx=5, pady=5)
         header.pack_propagate(False)
-        self.header_label = ctk.CTkLabel(header, text=self.lang_util.t("depannage_titre"), font=("Roboto", 24), text_color="white")
+
+        self.header_label = ctk.CTkLabel(
+            header,
+            text=self.lang_util.t("depannage_titre"),
+            font=("Roboto", 24),
+            text_color="white",
+        )
         self.header_label.pack(expand=True)
 
-        # ================= STATUT SYNCHRONISATION =================
+    def _create_sync_status(self):
         self.sync_status_badge = ctk.CTkLabel(
             self,
             text="",
@@ -100,50 +152,124 @@ class PageDepannage(ctk.CTkFrame):
             text_color="white",
             corner_radius=12,
             height=28,
-            padx=14
+            padx=14,
         )
         self.sync_status_badge.pack(pady=(3, 5))
 
-        self.update_network_status()
-        self.after(500,lambda: self.sync_depannage_database(show_popup=True))
+    def _create_selection_form(self):
+        form_frame = ctk.CTkFrame(
+            self,
+            border_width=1,
+        )
+        form_frame.pack(
+            fill="x",
+            padx=10,
+            pady=10,
+        )
 
-        # ================= FORM DROPDOWNS =================
-        form_frame = ctk.CTkFrame(self, border_width=1)
-        form_frame.pack(fill="x", padx=10, pady=10)
+        self.organe_label = ctk.CTkLabel(
+            form_frame,
+            text=self.lang_util.t("Sélectionnez_organe"),
+        )
+        self.organe_label.grid(
+            row=0,
+            column=0,
+            sticky="w",
+            padx=10,
+            pady=10,
+        )
 
-        form_frame_ia = ctk.CTkFrame(self, border_width=1)
-        form_frame_ia.pack(fill="x", padx=10, pady=10)
+        self.organe_var = ctk.StringVar(value="")
+        self.organe_menu = ctk.CTkOptionMenu(
+            form_frame,
+            values=[],
+            variable=self.organe_var,
+            command=self.organe_selected,
+        )
+        self.organe_menu.grid(
+            row=0,
+            column=1,
+            sticky="w",
+            padx=5,
+            pady=(10, 10),
+        )
 
-        # Label et dropdown organe
-        self.organe_label = ctk.CTkLabel(form_frame, text=self.lang_util.t("Sélectionnez_organe"))
-        self.organe_label.grid(row=0, column=0, sticky="w", padx=10, pady=10)
-        self.organe_var = ctk.StringVar(value="")  # valeur initiale vide
-        self.organe_menu = ctk.CTkOptionMenu(form_frame, values=[], variable=self.organe_var, command=self.organe_selected)
-        self.organe_menu.grid(row=0, column=1, sticky="w", padx=5, pady=(10,10))
+        self.sous_label = ctk.CTkLabel(
+            form_frame,
+            text=self.lang_util.t("Selectionnez-sous-organe"),
+        )
+        self.sous_label.grid(
+            row=1,
+            column=0,
+            sticky="w",
+            padx=10,
+            pady=5,
+        )
 
-        # Label et dropdown sous-organe
-        self.sous_label = ctk.CTkLabel(form_frame, text=self.lang_util.t("Selectionnez-sous-organe"))
-        self.sous_label.grid(row=1, column=0, sticky="w", padx=10, pady=5)
         self.sous_var = ctk.StringVar(value="")
-        self.sous_menu = ctk.CTkOptionMenu(form_frame, values=[], variable=self.sous_var, command=self.sous_selected)
-        self.sous_menu.grid(row=1, column=1, sticky="w", padx=5, pady=(5,10))
+        self.sous_menu = ctk.CTkOptionMenu(
+            form_frame,
+            values=[],
+            variable=self.sous_var,
+            command=self.sous_selected,
+        )
+        self.sous_menu.grid(
+            row=1,
+            column=1,
+            sticky="w",
+            padx=5,
+            pady=(5, 10),
+        )
 
-        # Bouton "Afficher dépannage" (initialement caché)
-        self.btn_afficher = ctk.CTkButton(form_frame, text=self.lang_util.t("depannage_aff"), command=self.afficher_depannage)
-        self.btn_afficher.grid(row=2, column=2, columnspan=2, padx=(35,0), pady=15)
-        self.btn_afficher.grid_remove()  # bouton caché par défaut
+        self.btn_afficher = ctk.CTkButton(
+            form_frame,
+            text=self.lang_util.t("depannage_aff"),
+            command=self.afficher_depannage,
+        )
+        self.btn_afficher.grid(
+            row=2,
+            column=2,
+            columnspan=2,
+            padx=(35, 0),
+            pady=15,
+        )
+        self.btn_afficher.grid_remove()
 
-        # Permet de créer des colonnes de largeur 1 pour le btn IA sur une ligne
-        for i in range(3):
-            form_frame_ia.grid_columnconfigure(i, weight=1)
+    def _create_ai_section(self):
+        form_frame_ia = ctk.CTkFrame(
+            self,
+            border_width=1,
+        )
+        form_frame_ia.pack(
+            fill="x",
+            padx=10,
+            pady=10,
+        )
 
-        # Bouton intelligence artificielle
-        self.btn_ia = ctk.CTkButton(form_frame_ia, text=self.lang_util.t("prediction_ia"))
-        self.btn_ia.grid(row=1, column=0, columnspan=3, padx=10, pady=15, sticky="")
+        for column in range(3):
+            form_frame_ia.grid_columnconfigure(
+                column,
+                weight=1,
+            )
 
-        # ================= CHARGEMENT DES DONNÉES =================
+        self.btn_ia = ctk.CTkButton(
+            form_frame_ia,
+            text=self.lang_util.t("prediction_ia"),
+        )
+        self.btn_ia.grid(
+            row=1,
+            column=0,
+            columnspan=3,
+            padx=10,
+            pady=15,
+            sticky="",
+        )
+
+    def _load_initial_materials(self):
         self.materiels_data = self.load_materiels()
-        self.organe_menu.configure(values=list(self.materiels_data.keys()))
+        self.organe_menu.configure(
+            values=list(self.materiels_data.keys())
+        )
 
     # ================= MÉTHODES =================
     def network_depannage_available(self):
@@ -167,12 +293,12 @@ class PageDepannage(ctk.CTkFrame):
         if self.network_depannage_available():
             self.sync_status_badge.configure(
                 text="● Base dépannage EK1 accessible",
-                fg_color="#2E8B57"
+                fg_color=NETWORK_OK_COLOR
             )
         else:
             self.sync_status_badge.configure(
                 text="● Réseau EK1 indisponible — utilisation de la base locale",
-                fg_color="#D97706"
+                fg_color=NETWORK_OFFLINE_COLOR
             )
 
     def check_initial_network_database(self):
@@ -508,6 +634,7 @@ class PageDepannage(ctk.CTkFrame):
 
     # Centrer le popup
     def center_popup(self, popup, width, height):
+        """Centre une fenêtre secondaire par rapport à la page."""
         self.update_idletasks()
 
         parent_x = self.winfo_rootx()
@@ -537,7 +664,7 @@ class PageDepannage(ctk.CTkFrame):
         popup.lift()               # passe au premier plan
         popup.focus_force()        # donne le focus clavier
         popup.resizable(False, False)
-        self.center_popup(popup, 540, 780)
+        self.center_popup(popup, *PROCEDURE_POPUP_SIZE)
 
         frame = ctk.CTkFrame(popup)
         frame.pack(fill="both", expand=True, padx=20, pady=20)
@@ -657,7 +784,7 @@ class PageDepannage(ctk.CTkFrame):
                 path = IMAGES_DIR / photo_file
                 if path.exists():
                     img = Image.open(path)
-                    img.thumbnail((320, 240))
+                    img.thumbnail(IMAGE_PREVIEW_SIZE)
                     ctk_img = ctk.CTkImage(img, size=img.size)
                     photo_label.configure(image=ctk_img, cursor="hand2", text="")
                     photo_label.image = ctk_img
@@ -694,7 +821,7 @@ class PageDepannage(ctk.CTkFrame):
             popup_img.resizable(False, False)
 
             # Taille raisonnable par défaut
-            self.center_popup(popup_img, 900, 735)
+            self.center_popup(popup_img, *IMAGE_POPUP_SIZE)
 
             frame = ctk.CTkFrame(popup_img)
             frame.pack(fill="both", expand=True, padx=20, pady=20)
@@ -703,8 +830,7 @@ class PageDepannage(ctk.CTkFrame):
             img = Image.open(path)
 
             # Adapter à la fenêtre (sans déformer)
-            max_size = (860, 620)
-            img.thumbnail(max_size)
+            img.thumbnail(IMAGE_LARGE_MAX_SIZE)
 
             ctk_img = ctk.CTkImage(img, size=img.size)
 
@@ -770,8 +896,8 @@ class PageDepannage(ctk.CTkFrame):
             delete_frame,
             text="Supprimer l'étape",
             width=150,
-            fg_color="#B91C1C",
-            hover_color="#991B1B",
+            fg_color=DELETE_COLOR,
+            hover_color=DELETE_HOVER_COLOR,
             command=lambda: self.supprimer_etape(
                 popup,
                 organe,
@@ -784,8 +910,8 @@ class PageDepannage(ctk.CTkFrame):
             delete_frame,
             text="Supprimer le scénario",
             width=170,
-            fg_color="#B91C1C",
-            hover_color="#991B1B",
+            fg_color=DELETE_COLOR,
+            hover_color=DELETE_HOVER_COLOR,
             command=lambda: self.supprimer_scenario(
                 popup,
                 organe,
@@ -1140,7 +1266,7 @@ class PageDepannage(ctk.CTkFrame):
         popup.resizable(False, False)
 
         # Centrage
-        self.center_popup(popup, 600, 750)
+        self.center_popup(popup, *EDIT_POPUP_SIZE)
         popup.transient(self)
         popup.grab_set()
 
@@ -1223,7 +1349,7 @@ class PageDepannage(ctk.CTkFrame):
             path = self.photos_paths[photo_index]
             if path.exists():
                 img = Image.open(path)
-                img.thumbnail((320, 240))
+                img.thumbnail(IMAGE_PREVIEW_SIZE)
                 ctk_img = ctk.CTkImage(img, size=img.size)
                 photo_display.configure(image=ctk_img, text="")
                 photo_display.image = ctk_img
