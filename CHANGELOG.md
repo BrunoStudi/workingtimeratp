@@ -4,7 +4,7 @@ Toutes les modifications notables apportées à **Journées de travail RATP – 
 
 ---
 
-## 🚀 Version 1.41.43
+## 🚀 Version 1.49.44
 
 **Date de publication : 10 septembre 2026**
 **Statut : Stable**
@@ -65,6 +65,21 @@ Toutes les modifications notables apportées à **Journées de travail RATP – 
 - Ajout de la possibilité d’associer plusieurs photos à une procédure.
 - Ajout d’un carrousel permettant de parcourir les photos.
 - Ajout de l’affichage agrandi des photos.
+- Ajout de la synchronisation collaborative de la base Dépannage.
+- Synchronisation automatique des procédures entre les postes de l'équipe.
+- Synchronisation des photos via le dossier partagé wtrap_pictures.
+- Conservation d'une copie locale en cas d'indisponibilité du réseau EK1.
+- Ajout d'un indicateur visuel de disponibilité de la base partagée.
+- Protection contre l'écrasement de modifications concurrentes.
+- Correction de l'affichage de plusieurs fenêtres contextuelles dans la version compilée.
+- Gestion du changement de scénario ou d'étape avec suppression automatique de l'ancienne entrée dans la base partagée.
+- Ajout de la suppression individuelle d'une étape de dépannage.
+- Ajout de la suppression complète d'un scénario et de toutes ses étapes.
+- Ajout d'une confirmation avant la suppression d'une étape ou d'un scénario.
+- Ajout du nettoyage automatique des photos devenues inutilisées.
+- Suppression des photos inutilisées dans le dossier local et dans le dossier partagé `wtrap_pictures`.
+- Conservation automatique d'une photo lorsqu'elle est encore utilisée par une autre procédure.
+- Réorganisation des boutons de la fenêtre de consultation des procédures afin de séparer les actions courantes des actions de suppression.
 
 ### 👤 Profil utilisateur
 
@@ -118,6 +133,12 @@ Toutes les modifications notables apportées à **Journées de travail RATP – 
 - Correction de l’empilement des boutons de navigation du carrousel.
 - Correction de l’affichage agrandi qui pouvait ouvrir plusieurs photos simultanément.
 - Correction d’un message d’erreur lors de la modification d’une procédure possédant déjà une photo.
+- Correction d'un problème où une modification locale pouvait être immédiatement remplacée par la version présente sur le réseau.
+- Correction de la priorité de synchronisation après modification d'une procédure.
+- Correction de la suppression de l'ancienne entrée lorsqu'un numéro de scénario ou d'étape est modifié.
+- Amélioration de la synchronisation entre la base locale et la base partagée.
+- Amélioration de la gestion des photos lors de la suppression des procédures.
+- Correction de plusieurs fenêtres contextuelles dans la version compilée.
 
 ### 📊 Exports
 
@@ -155,9 +176,13 @@ Toutes les modifications notables apportées à **Journées de travail RATP – 
 
 ## 🔐 Données & confidentialité
 
-Les données de l’application sont stockées localement sur le poste de l’utilisateur.
+Les données personnelles de l’utilisateur sont stockées localement sur le poste de travail.
 
-Aucune information personnelle n’est collectée ou transmise automatiquement à distance.
+Les procédures de dépannage et leurs photos peuvent être synchronisées sur le partage réseau interne EK1 afin de permettre leur utilisation collaborative entre les postes.
+
+Une copie locale des procédures est conservée afin de permettre leur consultation lorsque le partage réseau EK1 est indisponible.
+
+Aucune donnée personnelle n’est transmise à un service Internet externe.
 
 Les liens internes utilisés par l’application ne sont pas stockés directement en clair dans le code source.
 
@@ -174,8 +199,8 @@ La numérotation des versions suit le principe :
 | Élément   | Valeur | Signification                               |
 | --------- | -----: | ------------------------------------------- |
 | **MAJOR** |    `1` | Première génération stable de l’application |
-| **MINOR** |   `41` | Évolution fonctionnelle de l’application    |
-| **PATCH** |   `43` | Correctifs et améliorations de stabilité    |
+| **MINOR** |   `49` | Évolution fonctionnelle de l’application    |
+| **PATCH** |   `44` | Correctifs et améliorations de stabilité    |
 
 ---
 

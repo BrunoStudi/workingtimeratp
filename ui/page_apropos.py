@@ -72,7 +72,7 @@ class PageApropos(ctk.CTkFrame):
 
         version_label = ctk.CTkLabel(
             hero,
-            text="Version 1.41.43",
+            text="Version 1.49.44",
             font=("Roboto", 11, "bold"),
             text_color="white",
             fg_color="#1E5CC4",
@@ -137,8 +137,9 @@ class PageApropos(ctk.CTkFrame):
                 "Recherche des articles et suivi des quantités STOE / VG."
             ),
             (
-                "🔧 Dépannage",
-                "Accès aux procédures et aides de dépannage des cartes."
+                "🛠️ Dépannage",
+                "Consultation, création, modification et suppression de procédures avec photos, "
+                "base collaborative EK1 et synchronisation automatique entre les postes."
             ),
             (
                 "🔗 Raccourcis",
@@ -301,8 +302,10 @@ class PageApropos(ctk.CTkFrame):
         ctk.CTkLabel(
             privacy_frame,
             text=(
-                "Les données utilisateur sont stockées localement sur le poste de travail. "
-                "Aucune information personnelle n'est collectée ou transmise à distance."
+                "Les données personnelles de l'utilisateur sont stockées localement sur le poste de travail. "
+                "Les procédures de dépannage et leurs photos peuvent être synchronisées sur le partage "
+                "réseau interne EK1 afin de permettre leur utilisation collaborative entre les postes. "
+                "Aucune donnée personnelle n'est transmise à un service Internet externe."
             ),
             wraplength=WRAP,
             justify="left"

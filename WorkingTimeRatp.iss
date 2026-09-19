@@ -1,5 +1,5 @@
 #define MyAppName "WorkingTimeRatp"
-#define MyAppVersion "1.41.43"
+#define MyAppVersion "1.49.44"
 #define MyAppPublisher "RATP"
 #define MyAppExeName "WorkingTimeRatp.exe"
 

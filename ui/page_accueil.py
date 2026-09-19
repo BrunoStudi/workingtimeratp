@@ -24,6 +24,7 @@ MAX_JOURNEE = 454           # 7h34 en minutes
 MAX_HV_PAR_JOUR = 50        # max HV par jour
 URL_KEY = os.getenv("URL_KEY")
 
+# ======= Clé secrete pour les liens internet =======
 if not URL_KEY:
     raise ValueError("URL_KEY absente du fichier .env")
 

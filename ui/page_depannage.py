@@ -259,7 +259,7 @@ class PageDepannage(ctk.CTkFrame):
                 f"Détail : {e}"
             )
 
-    def sync_depannage_database(self, show_popup=True):
+    def sync_depannage_database(self, show_popup=True, prefer_local=False, replaced_key=None):
         """
         Synchronise automatiquement la base locale et la base réseau.
 
@@ -291,43 +291,63 @@ class PageDepannage(ctk.CTkFrame):
                 for d in network_depannages
             }
 
-            local_updated = False
             network_updated = False
+            local_updated = False
 
             # ==================================================
-            # RÉSEAU -> LOCAL
+            # REMPLACEMENT D'UNE ANCIENNE CLÉ
+            # ==================================================
+            # Exemple :
+            # scénario 001 / étape 002
+            # devient
+            # scénario 003 / étape 004
+            #
+            # L'ancienne clé doit disparaître des DEUX bases
+            # avant d'effectuer la fusion.
+            if replaced_key is not None:
+
+                if replaced_key in local_dict:
+                    del local_dict[replaced_key]
+                    local_updated = True
+
+                if replaced_key in network_dict:
+                    del network_dict[replaced_key]
+                    network_updated = True
+
+            # ==================================================
+            # NETWORK -> LOCAL / GESTION DES MODIFICATIONS
             # ==================================================
             for key, network_item in network_dict.items():
 
-                # Cette procédure n'existe pas encore localement
                 if key not in local_dict:
                     local_dict[key] = network_item
                     local_updated = True
 
-                # Même procédure mais contenu différent :
-                # le réseau actualise la copie locale
                 elif local_dict[key] != network_item:
-                    local_dict[key] = network_item
-                    local_updated = True
+
+                    if prefer_local:
+                        network_dict[key] = local_dict[key]
+                        network_updated = True
+
+                    else:
+                        local_dict[key] = network_item
+                        local_updated = True
 
             # ==================================================
-            # LOCAL -> RÉSEAU
+            # LOCAL -> NETWORK
             # ==================================================
             for key, local_item in local_dict.items():
 
-                # Cette procédure n'existe pas encore sur le réseau
                 if key not in network_dict:
                     network_dict[key] = local_item
                     network_updated = True
 
-            # Sauvegarde locale uniquement si nécessaire
             if local_updated:
                 save_depannage_file(
                     DEPANNAGE_FILE,
                     list(local_dict.values())
                 )
 
-            # Sauvegarde réseau uniquement si nécessaire
             if network_updated:
                 save_depannage_file(
                     DEPANNAGE_NETWORK_FILE,
@@ -335,6 +355,7 @@ class PageDepannage(ctk.CTkFrame):
                 )
 
             photos_updated = self.sync_depannage_photos()
+
             self.update_network_status()
 
             # Popup seulement si le poste a récupéré
@@ -700,33 +721,373 @@ class PageDepannage(ctk.CTkFrame):
 
         # ================= BOUTONS =================
         btn_frame = ctk.CTkFrame(frame)
-        btn_frame.pack(padx=10, pady=15)
+        btn_frame.pack(fill="x", padx=10, pady=15)
+
+        # ---------- Ligne 1 : actions principales ----------
+        actions_frame = ctk.CTkFrame(
+            btn_frame,
+            fg_color="transparent"
+        )
+        actions_frame.pack(pady=(5, 8))
 
         ctk.CTkButton(
-            btn_frame,
+            actions_frame,
             text="Modifier",
+            width=110,
             command=lambda: self.modifier_depannage(
                 popup,
                 organe,
                 sous,
                 self.etape_selected
             )
-        ).pack(side="left", padx=(0,10))
+        ).pack(side="left", padx=5)
 
         ctk.CTkButton(
-            btn_frame,
+            actions_frame,
             text="Ajouter",
+            width=110,
             command=lambda: (
                 popup.destroy(),
                 self.ajouter_depannage(organe, sous)
             )
-        ).pack(side="left", padx=10)
+        ).pack(side="left", padx=5)
 
         ctk.CTkButton(
-            btn_frame,
+            actions_frame,
             text="Fermer",
+            width=110,
             command=popup.destroy
-        ).pack(side="left", padx=(10,0))
+        ).pack(side="left", padx=5)
+
+        # ---------- Ligne 2 : suppressions ----------
+        delete_frame = ctk.CTkFrame(
+            btn_frame,
+            fg_color="transparent"
+        )
+        delete_frame.pack(pady=(0, 5))
+
+        ctk.CTkButton(
+            delete_frame,
+            text="Supprimer l'étape",
+            width=150,
+            fg_color="#B91C1C",
+            hover_color="#991B1B",
+            command=lambda: self.supprimer_etape(
+                popup,
+                organe,
+                sous,
+                self.etape_selected
+            )
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            delete_frame,
+            text="Supprimer le scénario",
+            width=170,
+            fg_color="#B91C1C",
+            hover_color="#991B1B",
+            command=lambda: self.supprimer_scenario(
+                popup,
+                organe,
+                sous,
+                self.etape_selected
+            )
+        ).pack(side="left", padx=5)
+
+    def supprimer_photos_inutilisees(self, photos_candidates):
+        """
+        Supprime les photos qui ne sont plus utilisées
+        par aucune procédure de dépannage.
+
+        Suppression :
+        - dossier local Pictures/WorkingTimeRatp
+        - dossier réseau wtrap_pictures si accessible
+        """
+
+        if not photos_candidates:
+            return
+
+        # ==================================================
+        # RÉCUPÉRATION DES PHOTOS ENCORE UTILISÉES
+        # ==================================================
+        photos_utilisees = set()
+
+        # Base locale
+        local_depannages = load_depannage_file(
+            DEPANNAGE_FILE
+        )
+
+        for depannage in local_depannages:
+            for photo in depannage.get("photos", []):
+                photos_utilisees.add(photo)
+
+            # Compatibilité avec les anciennes procédures
+            # utilisant encore la clé "photo"
+            ancienne_photo = depannage.get("photo")
+
+            if ancienne_photo:
+                photos_utilisees.add(ancienne_photo)
+
+        # Base réseau
+        if (
+            self.network_depannage_available()
+            and DEPANNAGE_NETWORK_FILE.exists()
+        ):
+            network_depannages = load_depannage_file(
+                DEPANNAGE_NETWORK_FILE
+            )
+
+            for depannage in network_depannages:
+                for photo in depannage.get("photos", []):
+                    photos_utilisees.add(photo)
+
+                ancienne_photo = depannage.get("photo")
+
+                if ancienne_photo:
+                    photos_utilisees.add(ancienne_photo)
+
+        # ==================================================
+        # SUPPRESSION DES PHOTOS DEVENUES INUTILES
+        # ==================================================
+        for photo_name in set(photos_candidates):
+
+            if not photo_name:
+                continue
+
+            # Encore utilisée quelque part -> on conserve
+            if photo_name in photos_utilisees:
+                continue
+
+            # ---------- LOCAL ----------
+            local_photo = IMAGES_DIR / photo_name
+
+            try:
+                if local_photo.exists():
+                    local_photo.unlink()
+
+            except OSError:
+                pass
+
+            # ---------- RÉSEAU ----------
+            if self.network_depannage_available():
+
+                network_photo = (
+                    DEPANNAGE_NETWORK_IMAGES_DIR /
+                    photo_name
+                )
+
+                try:
+                    if network_photo.exists():
+                        network_photo.unlink()
+
+                except OSError:
+                    pass
+
+    def supprimer_etape(self, popup, organe, sous, data_existante):
+        """Supprime uniquement l'étape sélectionnée."""
+
+        if data_existante is None:
+            msg.showwarning(
+                "Aucune étape sélectionnée",
+                "Veuillez sélectionner une étape à supprimer."
+            )
+            return
+
+        scenario = data_existante.get("scenario")
+        etape = data_existante.get("etape")
+        key_to_delete = depannage_key(data_existante)
+
+        photos_to_delete = list(
+            data_existante.get("photos", [])
+        )
+
+        # Compatibilité avec les anciennes procédures
+        if data_existante.get("photo"):
+            photos_to_delete.append(
+                data_existante["photo"]
+            )
+
+        confirmation = msg.askyesno(
+            "Supprimer l'étape",
+            f"Voulez-vous vraiment supprimer l'étape {etape} "
+            f"du scénario {scenario} ?\n\n"
+            "Cette suppression sera également appliquée "
+            "à la base partagée EK1."
+        )
+
+        if not confirmation:
+            return
+
+        try:
+            # ==========================================
+            # SUPPRESSION LOCALE
+            # ==========================================
+            local_depannages = load_depannage_file(
+                DEPANNAGE_FILE
+            )
+
+            local_depannages = [
+                d for d in local_depannages
+                if depannage_key(d) != key_to_delete
+            ]
+
+            save_depannage_file(
+                DEPANNAGE_FILE,
+                local_depannages
+            )
+
+            # ==========================================
+            # SUPPRESSION RÉSEAU
+            # ==========================================
+            if (
+                self.network_depannage_available()
+                and DEPANNAGE_NETWORK_FILE.exists()
+            ):
+                network_depannages = load_depannage_file(
+                    DEPANNAGE_NETWORK_FILE
+                )
+
+                network_depannages = [
+                    d for d in network_depannages
+                    if depannage_key(d) != key_to_delete
+                ]
+
+                save_depannage_file(
+                    DEPANNAGE_NETWORK_FILE,
+                    network_depannages
+                )
+
+            # Suppression des photos devenues inutilisées
+            self.supprimer_photos_inutilisees(
+                photos_to_delete
+            )
+
+            popup.destroy()
+
+            msg.showinfo(
+                "Suppression réussie",
+                f"L'étape {etape} du scénario {scenario} "
+                "a été supprimée."
+            )
+
+        except (PermissionError, OSError) as e:
+            msg.showerror(
+                "Erreur",
+                "Impossible de supprimer cette étape.\n\n"
+                f"Détail : {e}"
+            )
+
+
+    def supprimer_scenario(self, popup, organe, sous, data_existante):
+        """Supprime le scénario sélectionné et toutes ses étapes."""
+
+        if data_existante is None:
+            msg.showwarning(
+                "Aucun scénario sélectionné",
+                "Veuillez sélectionner un scénario à supprimer."
+            )
+            return
+
+        scenario = data_existante.get("scenario")
+
+        photos_to_delete = []
+
+        # Recherche de toutes les photos appartenant
+        # aux étapes du scénario
+        for depannage in load_depannage_file(DEPANNAGE_FILE):
+
+            if (
+                depannage.get("organe") == organe
+                and depannage.get("sous_organe") == sous
+                and depannage.get("scenario") == scenario
+            ):
+                photos_to_delete.extend(
+                    depannage.get("photos", [])
+                )
+
+                # Compatibilité ancienne clé "photo"
+                if depannage.get("photo"):
+                    photos_to_delete.append(
+                        depannage["photo"]
+                    )
+
+        confirmation = msg.askyesno(
+            "Supprimer le scénario",
+            f"Voulez-vous vraiment supprimer le scénario {scenario} ?\n\n"
+            "Toutes les étapes appartenant à ce scénario seront supprimées.\n\n"
+            "Cette suppression sera également appliquée "
+            "à la base partagée EK1."
+        )
+
+        if not confirmation:
+            return
+
+        try:
+            # ==========================================
+            # SUPPRESSION LOCALE
+            # ==========================================
+            local_depannages = load_depannage_file(
+                DEPANNAGE_FILE
+            )
+
+            local_depannages = [
+                d for d in local_depannages
+                if not (
+                    d.get("organe") == organe
+                    and d.get("sous_organe") == sous
+                    and d.get("scenario") == scenario
+                )
+            ]
+
+            save_depannage_file(
+                DEPANNAGE_FILE,
+                local_depannages
+            )
+
+            # ==========================================
+            # SUPPRESSION RÉSEAU
+            # ==========================================
+            if (
+                self.network_depannage_available()
+                and DEPANNAGE_NETWORK_FILE.exists()
+            ):
+                network_depannages = load_depannage_file(
+                    DEPANNAGE_NETWORK_FILE
+                )
+
+                network_depannages = [
+                    d for d in network_depannages
+                    if not (
+                        d.get("organe") == organe
+                        and d.get("sous_organe") == sous
+                        and d.get("scenario") == scenario
+                    )
+                ]
+
+                save_depannage_file(
+                    DEPANNAGE_NETWORK_FILE,
+                    network_depannages
+                )
+
+            # Suppression des photos devenues inutilisées
+            self.supprimer_photos_inutilisees(
+                photos_to_delete
+            )
+
+            popup.destroy()
+
+            msg.showinfo(
+                "Suppression réussie",
+                f"Le scénario {scenario} et toutes ses étapes "
+                "ont été supprimés."
+            )
+
+        except (PermissionError, OSError) as e:
+            msg.showerror(
+                "Erreur",
+                "Impossible de supprimer ce scénario.\n\n"
+                f"Détail : {e}"
+            )
 
     def modifier_depannage(self, popup, organe, sous, data_existante):
         """
@@ -996,6 +1357,15 @@ class PageDepannage(ctk.CTkFrame):
                 "photos": saved_photos
             }
 
+            # Clé de la nouvelle procédure
+            new_key = depannage_key(new_data)
+
+            # Clé de l'ancienne procédure en cas de modification
+            old_key = None
+
+            if data_existante:
+                old_key = depannage_key(data_existante)
+
             # Lecture fichier existant
             if DEPANNAGE_FILE.exists() and DEPANNAGE_FILE.stat().st_size > 0:
                 try:
@@ -1009,16 +1379,27 @@ class PageDepannage(ctk.CTkFrame):
             if "depannages" not in data:
                 data["depannages"] = []
 
+            # Vérifie que la nouvelle combinaison scénario / étape
+            # n'est pas déjà utilisée par une autre procédure
+            for existing in data["depannages"]:
+                existing_key = depannage_key(existing)
+
+                # Si on modifie une procédure, on ignore l'entrée actuelle
+                if data_existante and existing_key == old_key:
+                    continue
+
+                if existing_key == new_key:
+                    msg.showerror(
+                        "Procédure existante",
+                        "Une procédure avec ce scénario et cette étape existe déjà."
+                    )
+                    return
+
             # Suppression ancienne entrée si modification
             if data_existante:
                 data["depannages"] = [
                     d for d in data["depannages"]
-                    if not (
-                        d["organe"] == organe and
-                        d["sous_organe"] == sous and
-                        d["scenario"] == data_existante["scenario"] and
-                        d["etape"] == data_existante["etape"]
-                    )
+                    if depannage_key(d) != old_key
                 ]
 
             data["depannages"].append(new_data)
@@ -1028,7 +1409,15 @@ class PageDepannage(ctk.CTkFrame):
                 json.dump(data, f, ensure_ascii=False, indent=4)
 
             # Synchronisation automatique avec la base EK1
-            self.sync_depannage_database(show_popup=False)
+            self.sync_depannage_database(
+                show_popup=False,
+                prefer_local=True,
+                replaced_key=(
+                    old_key
+                    if old_key is not None and old_key != new_key
+                    else None
+                )
+            )
 
             msg.showinfo(
                 "Succès",

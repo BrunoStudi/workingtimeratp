@@ -68,7 +68,7 @@ class Dashboard(ctk.CTk):
         apply_theme(settings.get("theme", "Dark"))
 
         # Configuration de la fenêtre
-        self.title("Journées de travail RATP - Application Agent v1.41.43")
+        self.title("Journées de travail RATP - Application Agent v1.49.44")
         self.geometry("1180x850")
         icon_path = os.path.join("ui", "assets", "train.ico")
         self.iconbitmap(resource_path(icon_path))
