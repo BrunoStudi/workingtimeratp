@@ -14,4 +14,4 @@ Les données utilisateur sont conservées localement sur le poste de travail.
 
 Développé par Bruno Carrière
 Équipe EK1 • AME
-Version 1.41.43
+Version 1.49.44
