@@ -35,6 +35,10 @@ MAX_JOURNEE = 454          # 7h34 en minutes
 MAX_HV_PAR_JOUR = 50       # Maximum d'HV comptabilisées par jour
 PRODUCTIVE_RATIO = 0.87    # Temps productif retenu pour Magellan
 
+# Couleurs des cartes
+BORDER_COLOR = "gray72", "gray10"
+FG_COLOR = "gray85", "gray30"
+
 ROLE_CONFIG = {
     "Opérateur": {"color": "#0066DB", "label": "Opérateur"},
     "Technicien": {"color": "#009E1A", "label": "Tech"},
@@ -145,8 +149,8 @@ class PageAccueil(ctk.CTkScrollableFrame):
             self,
             corner_radius=10,
             border_width=1,
-            border_color=("gray72", "gray30"),
-            fg_color=("gray85"),
+            border_color=BORDER_COLOR,
+            fg_color=FG_COLOR,
         )
         greeting_frame.pack(pady=(30, 30), padx=20)
 
@@ -186,8 +190,8 @@ class PageAccueil(ctk.CTkScrollableFrame):
             self,
             corner_radius=10,
             border_width=1,
-            border_color=("gray72", "gray30"),
-            fg_color=("gray85"),
+            border_color=BORDER_COLOR,
+            fg_color=FG_COLOR,
         )
         self.datetime_frame.pack(pady=(8, 30), padx=20)
 
@@ -210,8 +214,8 @@ class PageAccueil(ctk.CTkScrollableFrame):
             self,
             corner_radius=10,
             border_width=1,
-            border_color=("gray72", "gray30"),
-            fg_color=("gray85"),
+            border_color=BORDER_COLOR,
+            fg_color=FG_COLOR,
         )
         self.icon_frame.pack(pady=(0, 30), padx=20, fill="x")
 
@@ -310,9 +314,9 @@ class PageAccueil(ctk.CTkScrollableFrame):
         self.info_frame = ctk.CTkFrame(
             self.info_container,
             corner_radius=10,
-            fg_color=("gray85"),
+            fg_color=FG_COLOR,
             border_width=1,
-            border_color=("gray72", "gray30"),
+            border_color=BORDER_COLOR,
         )
         self.info_frame.pack(
             pady=5,

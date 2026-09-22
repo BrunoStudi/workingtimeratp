@@ -9,6 +9,10 @@ from utils.page_lang import PageLang
 HEADER_COLOR = "#1E5CC4"
 UNDEFINED_VALUE = "Non défini"
 
+MAIN_BORDER_COLOR = "gray68", "gray30"
+MAIN_FG_COLOR = "gray75", "gray45"
+CARD_FG_COLOR = "gray85", "gray30"
+
 GRADES = (
     "Opérateur",
     "Technicien",
@@ -79,8 +83,8 @@ class PageProfil(ctk.CTkFrame):
         self.main_container = ctk.CTkFrame(
             self,
             border_width=1,
-            border_color=("gray68", "gray30"),
-            fg_color=("gray85", "gray20"),
+            border_color=MAIN_BORDER_COLOR,
+            fg_color=MAIN_FG_COLOR,
         )
         self.main_container.pack(
             fill="x",
@@ -166,7 +170,7 @@ class PageProfil(ctk.CTkFrame):
         card = ctk.CTkFrame(
             self.main_container,
             corner_radius=10,
-            fg_color=("gray90"),
+            fg_color=CARD_FG_COLOR,
             border_width=1,
         )
         card.grid(

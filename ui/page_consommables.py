@@ -180,7 +180,10 @@ class PageConsommables(ctk.CTkFrame):
         )
 
     def _create_table(self):
-        table_frame = ctk.CTkFrame(self)
+        table_frame = ctk.CTkFrame(
+            self,
+            corner_radius=8,
+        )
         table_frame.pack(
             fill="both",
             expand=True,
@@ -188,8 +191,10 @@ class PageConsommables(ctk.CTkFrame):
             pady=5,
         )
 
+        # Configuration du style avant création du Treeview
         self._configure_treeview_style()
 
+        # Scrollbar verticale
         scrollbar_y = ttk.Scrollbar(
             table_frame,
             orient="vertical",
@@ -197,8 +202,11 @@ class PageConsommables(ctk.CTkFrame):
         scrollbar_y.pack(
             side="right",
             fill="y",
+            padx=(0, 2),
+            pady=2,
         )
 
+        # Tableau
         self.tree = ttk.Treeview(
             table_frame,
             columns=COLUMNS,
@@ -206,8 +214,10 @@ class PageConsommables(ctk.CTkFrame):
             style=TREEVIEW_STYLE,
             height=20,
             yscrollcommand=scrollbar_y.set,
+            selectmode="browse",
         )
 
+        # Configuration
         self._configure_treeview_tags()
         self._configure_treeview_columns()
 
@@ -215,76 +225,208 @@ class PageConsommables(ctk.CTkFrame):
             side="left",
             fill="both",
             expand=True,
+            padx=2,
+            pady=2,
         )
 
         scrollbar_y.configure(
             command=self.tree.yview,
         )
 
+
     @staticmethod
     def _configure_treeview_style():
+        """
+        Configure l'apparence moderne du Treeview
+        en fonction du thème CustomTkinter actif.
+        """
+
         style = ttk.Style()
-        style.theme_use("default")
+        style.theme_use("clam")
+
+        dark_mode = ctk.get_appearance_mode() == "Dark"
+
+        # -------------------------------------------------
+        # Couleurs Dark / Light
+        # -------------------------------------------------
+
+        if dark_mode:
+            background = "#242424"
+            foreground = "#EAEAEA"
+
+            heading_background = "#303030"
+            heading_foreground = "#FFFFFF"
+            heading_hover = "#3A3A3A"
+
+            selected_background = "#1E5CC4"
+            selected_foreground = "#FFFFFF"
+
+            border_color = "#3A3A3A"
+
+        else:
+            background = "#F7F7F7"
+            foreground = "#202020"
+
+            heading_background = "#E5E5E5"
+            heading_foreground = "#202020"
+            heading_hover = "#D5D5D5"
+
+            selected_background = "#1E5CC4"
+            selected_foreground = "#FFFFFF"
+
+            border_color = "#D0D0D0"
+
+        # -------------------------------------------------
+        # Corps du tableau
+        # -------------------------------------------------
+
+        style.configure(
+            TREEVIEW_STYLE,
+            background=background,
+            foreground=foreground,
+            fieldbackground=background,
+            bordercolor=border_color,
+            borderwidth=0,
+            relief="flat",
+            rowheight=34,
+            font=("Roboto", 11),
+        )
+
+        # Couleur de sélection
+        style.map(
+            TREEVIEW_STYLE,
+            background=[
+                ("selected", selected_background),
+            ],
+            foreground=[
+                ("selected", selected_foreground),
+            ],
+        )
+
+        # -------------------------------------------------
+        # En-têtes
+        # -------------------------------------------------
 
         style.configure(
             TREEVIEW_HEADING_STYLE,
-            background="#DADADA",
-            foreground="#000000",
-            font=("Roboto", 10),
+            background=heading_background,
+            foreground=heading_foreground,
+            bordercolor=border_color,
+            borderwidth=0,
+            relief="flat",
+            padding=(10, 8),
+            font=("Roboto", 11, "bold"),
         )
+
+        # Survol des en-têtes
         style.map(
             TREEVIEW_HEADING_STYLE,
-            background=[("active", "#C8C8C8")],
+            background=[
+                ("active", heading_hover),
+            ],
+            foreground=[
+                ("active", heading_foreground),
+            ],
         )
+
 
     def _configure_treeview_tags(self):
+        """
+        Configure les couleurs des états de stock
+        en fonction du thème actif.
+        """
+
+        dark_mode = ctk.get_appearance_mode() == "Dark"
+
+        if dark_mode:
+            # Rupture complète
+            rupture_background = "#7F1D1D"
+            rupture_foreground = "#FEE2E2"
+
+            # Stock STOE vide
+            warning_background = "#78350F"
+            warning_foreground = "#FEF3C7"
+
+        else:
+            # Rupture complète
+            rupture_background = "#FECACA"
+            rupture_foreground = "#7F1D1D"
+
+            # Stock STOE vide
+            warning_background = "#FDE68A"
+            warning_foreground = "#78350F"
+
         self.tree.tag_configure(
             "rupture",
-            background="#FF3030",
-            foreground="black",
-        )
-        self.tree.tag_configure(
-            "stoe_vide",
-            background="#FFA500",
-            foreground="black",
+            background=rupture_background,
+            foreground=rupture_foreground,
         )
 
+        self.tree.tag_configure(
+            "stoe_vide",
+            background=warning_background,
+            foreground=warning_foreground,
+        )
+
+
     def _configure_treeview_columns(self):
+        # -------------------------------------------------
+        # En-têtes
+        # -------------------------------------------------
+
         self.tree.heading(
             "id",
             text=self.lang_util.t("consommable_id"),
         )
+
         self.tree.heading(
             "nom",
             text=self.lang_util.t("consommable_nom"),
         )
+
         self.tree.heading(
             "quantite_stoe",
             text="Quantité STOE",
         )
+
         self.tree.heading(
             "quantite_vg",
             text="Quantité VG",
         )
 
+        # -------------------------------------------------
+        # Colonnes
+        # -------------------------------------------------
+
         self.tree.column(
             "id",
-            width=20,
+            width=150,
+            minwidth=120,
+            stretch=False,
             anchor="center",
         )
+
         self.tree.column(
             "nom",
-            width=500,
+            width=200,
+            minwidth=100,
+            stretch=True,
             anchor="w",
         )
+
         self.tree.column(
             "quantite_stoe",
-            width=20,
+            width=120,
+            minwidth=100,
+            stretch=False,
             anchor="center",
         )
+
         self.tree.column(
             "quantite_vg",
-            width=20,
+            width=120,
+            minwidth=100,
+            stretch=False,
             anchor="center",
         )
 
@@ -686,3 +828,7 @@ class PageConsommables(ctk.CTkFrame):
         self.search_btn.configure(
             text=self.lang_util.t("rechercher")
         )
+
+    def refresh_theme(self):
+        self._configure_treeview_style()
+        self._configure_treeview_tags()

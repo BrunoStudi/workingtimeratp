@@ -31,3 +31,4 @@ user.json
 
 # Anciennes versions Python conservées localement
 *_old.py
+*_bak.py

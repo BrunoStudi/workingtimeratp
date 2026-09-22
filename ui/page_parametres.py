@@ -138,13 +138,23 @@ class PageParams(ctk.CTkFrame):
     def on_theme_change(self):
         theme = self.theme_var.get()
 
+        # Applique le thème CustomTkinter
         apply_theme(theme)
+
+        # Sauvegarde le choix
         self._save_setting(
             "theme",
             theme,
         )
 
+        # Met à jour le texte du switch
         self.update_switch_text()
+
+        # Met à jour les composants nécessitant
+        # un rafraîchissement manuel du thème
+        for page in self.app.pages.values():
+            if hasattr(page, "refresh_theme"):
+                page.refresh_theme()
 
     def update_switch_text(self):
         translation_key = (

@@ -25,6 +25,8 @@ EXCEL_COLOR = "#00854D"
 EXCEL_HOVER_COLOR = "#004724"
 PDF_COLOR = "#8400C2"
 PDF_HOVER_COLOR = "#3B005E"
+TREEVIEW_STYLE = "Historique.Treeview"
+TREEVIEW_HEADING_STYLE = "Historique.Treeview.Heading"
 
 WORKDAY_MINUTES = 454
 MAX_HV_PER_DAY = 454
@@ -325,7 +327,10 @@ class PageHistorique(ctk.CTkFrame):
             "saisie_magellan": "historique_col_saisie_magellan",
         }
 
-        tree_container = ctk.CTkFrame(self)
+        tree_container = ctk.CTkFrame(
+            self,
+            corner_radius=8,
+        )
         tree_container.pack(
             fill="both",
             expand=True,
@@ -333,11 +338,15 @@ class PageHistorique(ctk.CTkFrame):
             pady=10,
         )
 
+        self._configure_treeview_style()
+
         self.tree = ttk.Treeview(
             tree_container,
             columns=TREE_COLUMNS,
             show="headings",
+            style=TREEVIEW_STYLE,
             height=20,
+            selectmode="browse",
         )
 
         scrollbar = ttk.Scrollbar(
@@ -345,60 +354,137 @@ class PageHistorique(ctk.CTkFrame):
             orient="vertical",
             command=self.tree.yview,
         )
-        self.tree.configure(
-            yscrollcommand=scrollbar.set
-        )
+        self.tree.configure(yscrollcommand=scrollbar.set)
 
         self.tree.grid(
             row=0,
             column=0,
             sticky="nsew",
+            padx=(2, 0),
+            pady=2,
         )
         scrollbar.grid(
             row=0,
             column=1,
             sticky="ns",
+            padx=(0, 2),
+            pady=2,
         )
 
-        tree_container.grid_rowconfigure(
-            0,
-            weight=1,
+        tree_container.grid_rowconfigure(0, weight=1)
+        tree_container.grid_columnconfigure(0, weight=1)
+
+        self._configure_treeview_tags()
+        self._configure_treeview_columns()
+
+        self.tree.bind("<Double-1>", self.on_double_click)
+        self.tree.bind("<Button-3>", self.on_right_click)
+
+    @staticmethod
+    def _configure_treeview_style():
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        dark_mode = ctk.get_appearance_mode() == "Dark"
+
+        if dark_mode:
+            background = "#242424"
+            foreground = "#EAEAEA"
+            heading_background = "#303030"
+            heading_foreground = "#FFFFFF"
+            heading_hover = "#3A3A3A"
+            selected_background = "#1E5CC4"
+            selected_foreground = "#FFFFFF"
+            border_color = "#3A3A3A"
+        else:
+            background = "#F7F7F7"
+            foreground = "#202020"
+            heading_background = "#E5E5E5"
+            heading_foreground = "#202020"
+            heading_hover = "#D5D5D5"
+            selected_background = "#1E5CC4"
+            selected_foreground = "#FFFFFF"
+            border_color = "#D0D0D0"
+
+        style.configure(
+            TREEVIEW_STYLE,
+            background=background,
+            foreground=foreground,
+            fieldbackground=background,
+            bordercolor=border_color,
+            borderwidth=0,
+            relief="flat",
+            rowheight=34,
+            font=("Roboto", 11),
         )
-        tree_container.grid_columnconfigure(
-            0,
-            weight=1,
+        style.map(
+            TREEVIEW_STYLE,
+            background=[("selected", selected_background)],
+            foreground=[("selected", selected_foreground)],
         )
 
-        self.tree.bind(
-            "<Double-1>",
-            self.on_double_click,
+        style.configure(
+            TREEVIEW_HEADING_STYLE,
+            background=heading_background,
+            foreground=heading_foreground,
+            bordercolor=border_color,
+            borderwidth=0,
+            relief="flat",
+            padding=(10, 8),
+            font=("Roboto", 11, "bold"),
         )
-        self.tree.bind(
-            "<Button-3>",
-            self.on_right_click,
+        style.map(
+            TREEVIEW_HEADING_STYLE,
+            background=[("active", heading_hover)],
+            foreground=[("active", heading_foreground)],
         )
+
+    def _configure_treeview_tags(self):
+        dark_mode = ctk.get_appearance_mode() == "Dark"
+
+        if dark_mode:
+            magellan_non_background = "#78350F"
+            magellan_non_foreground = "#FEF3C7"
+            magellan_oui_background = "#242424"
+            magellan_oui_foreground = "#EAEAEA"
+            separator_background = "#111111"
+        else:
+            magellan_non_background = "#FDE68A"
+            magellan_non_foreground = "#78350F"
+            magellan_oui_background = "#F7F7F7"
+            magellan_oui_foreground = "#202020"
+            separator_background = "#B8B8B8"
 
         self.tree.tag_configure(
             "magellan_non",
-            background="#ffb366",
+            background=magellan_non_background,
+            foreground=magellan_non_foreground,
         )
         self.tree.tag_configure(
             "magellan_oui",
-            background="#f2f2f2",
+            background=magellan_oui_background,
+            foreground=magellan_oui_foreground,
+        )
+        self.tree.tag_configure(
+            "separator",
+            background=separator_background,
         )
 
+    def _configure_treeview_columns(self):
         for column in TREE_COLUMNS:
             self.tree.heading(
                 column,
-                text=self.lang_util.t(
-                    self.column_headers[column]
-                ),
+                text=self.lang_util.t(self.column_headers[column]),
             )
-            self.tree.column(
-                column,
-                width=120,
-                anchor="center",
-            )
+
+        self.tree.column("jour", width=110, minwidth=100, anchor="center")
+        self.tree.column("heure_debut", width=100, minwidth=90, anchor="center")
+        self.tree.column("heure_fin", width=100, minwidth=90, anchor="center")
+        self.tree.column("temps_total", width=100, minwidth=90, anchor="center")
+        self.tree.column("hv", width=90, minwidth=80, anchor="center")
+        self.tree.column("organes", width=150, minwidth=100, anchor="center")
+        self.tree.column("sous_organes", width=150, minwidth=100, anchor="center")
+        self.tree.column("saisie_magellan", width=130, minwidth=110, anchor="center")
 
     def _create_context_menu(self):
         self.menu = tk.Menu(
@@ -623,7 +709,6 @@ class PageHistorique(ctk.CTkFrame):
 
         last_jour = None  # Pour détecter le changement de journée
 
-        self.tree.tag_configure("separator", background="black")  # ligne noire
         
         # 3) Insert
         row_index = 0
@@ -707,7 +792,6 @@ class PageHistorique(ctk.CTkFrame):
         entries.sort(key=lambda x: (x["jour"], x["heure_debut"]))
 
         last_jour = None
-        self.tree.tag_configure("separator", background="black")
         row_index = 0
 
         for entry in entries:
@@ -1200,6 +1284,11 @@ class PageHistorique(ctk.CTkFrame):
                 f.write("")
             self.tree.delete(*self.tree.get_children())
     
+    # ---------------- Rafraîchissement du thème -------------------------
+    def refresh_theme(self):
+        self._configure_treeview_style()
+        self._configure_treeview_tags()
+
     # Traduction du language
     def refresh_language(self):
         self.lang_util = PageLang(self.app)
