@@ -102,7 +102,8 @@ TRANSLATIONS = {
         "mon_profil": "Mon Profil",
         "mes_raccourcis": "Mes raccourcis",
         "mes_informations": "Mes informations :",
-        "modifier_information": "Modifier mes informations"
+        "modifier_information": "Modifier mes informations",
+        "quitter": "Quitter"
     },
     "english": {
         "accueil": "Home",
@@ -206,6 +207,7 @@ TRANSLATIONS = {
         "mon_profil": "My Profile",
         "mes_raccourcis": "My shortcuts",
         "mes_informations": "My informations :",
-        "modifier_information": "Edit my informations"
+        "modifier_information": "Edit my informations",
+        "quitter": "Exit"
     }
 }

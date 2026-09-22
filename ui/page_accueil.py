@@ -144,9 +144,9 @@ class PageAccueil(ctk.CTkScrollableFrame):
         greeting_frame = ctk.CTkFrame(
             self,
             corner_radius=10,
-            border_width=2,
-            border_color=("gray68", "gray30"),
-            fg_color=("gray75", "gray20"),
+            border_width=1,
+            border_color=("gray72", "gray30"),
+            fg_color=("gray85"),
         )
         greeting_frame.pack(pady=(30, 30), padx=20)
 
@@ -185,9 +185,9 @@ class PageAccueil(ctk.CTkScrollableFrame):
         self.datetime_frame = ctk.CTkFrame(
             self,
             corner_radius=10,
-            border_width=2,
-            border_color=("gray68", "gray30"),
-            fg_color=("gray75", "gray20"),
+            border_width=1,
+            border_color=("gray72", "gray30"),
+            fg_color=("gray85"),
         )
         self.datetime_frame.pack(pady=(8, 30), padx=20)
 
@@ -209,9 +209,9 @@ class PageAccueil(ctk.CTkScrollableFrame):
         self.icon_frame = ctk.CTkFrame(
             self,
             corner_radius=10,
-            border_width=2,
-            border_color=("gray68", "gray30"),
-            fg_color=("gray75", "gray20"),
+            border_width=1,
+            border_color=("gray72", "gray30"),
+            fg_color=("gray85"),
         )
         self.icon_frame.pack(pady=(0, 30), padx=20, fill="x")
 
@@ -310,9 +310,9 @@ class PageAccueil(ctk.CTkScrollableFrame):
         self.info_frame = ctk.CTkFrame(
             self.info_container,
             corner_radius=10,
-            fg_color=("gray75", "gray20"),
-            border_width=2,
-            border_color=("gray68", "gray30"),
+            fg_color=("gray85"),
+            border_width=1,
+            border_color=("gray72", "gray30"),
         )
         self.info_frame.pack(
             pady=5,

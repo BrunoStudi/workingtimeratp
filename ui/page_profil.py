@@ -80,7 +80,7 @@ class PageProfil(ctk.CTkFrame):
             self,
             border_width=1,
             border_color=("gray68", "gray30"),
-            fg_color=("gray75", "gray20"),
+            fg_color=("gray85", "gray20"),
         )
         self.main_container.pack(
             fill="x",
@@ -166,7 +166,7 @@ class PageProfil(ctk.CTkFrame):
         card = ctk.CTkFrame(
             self.main_container,
             corner_radius=10,
-            fg_color=("gray85", "gray25"),
+            fg_color=("gray90"),
             border_width=1,
         )
         card.grid(

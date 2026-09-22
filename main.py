@@ -22,6 +22,8 @@ HEADER_COLOR = "#1E5CC4"
 DEFAULT_LANGUAGE = "francais"
 DEFAULT_THEME = "Dark"
 DEFAULT_ROLE = "Opérateur"
+EXIT_COLOR = "#B91C1C"
+EXIT_HOVER_COLOR = "#991B1B"
 
 SIDEBAR_BUTTONS = (
     ("btn_accueil", "accueil", "show_accueil"),
@@ -161,6 +163,16 @@ class Dashboard(ctk.CTk):
             )
             button.pack(pady=10)
             setattr(self, attribute, button)
+
+        # Bouton Quitter
+        self.btn_quitter = ctk.CTkButton(
+            self.sidebar,
+            text="Quitter",
+            command=self.destroy,
+            fg_color=EXIT_COLOR,
+            hover_color=EXIT_HOVER_COLOR,
+        )
+        self.btn_quitter.pack(pady=10)
 
     def _create_main_frame(self):
         self.main_frame = ctk.CTkFrame(self, corner_radius=10)
@@ -344,6 +356,7 @@ class Dashboard(ctk.CTk):
         self.btn_profil.configure(text=self.lang_util.t("profil"))
         self.btn_params.configure(text=self.lang_util.t("parametres"))
         self.btn_apropos.configure(text=self.lang_util.t("a_propos"))
+        self.btn_quitter.configure(text=self.lang_util.t("quitter"))
 
 if __name__ == "__main__":
     ctk.set_appearance_mode("dark")
